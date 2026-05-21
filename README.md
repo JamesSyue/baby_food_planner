@@ -1,36 +1,158 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Baby Food Planner Next.js
 
-## Getting Started
+這個專案把 [original_project](../original_project) 的 Apps Script + Google Sheets 結構，改造成 Next.js App Router + MySQL + Prisma 的網站版本，保留以下核心模組：
 
-First, run the development server:
+- 食材庫存
+- 食材特性
+- 副食品規則
+- 試敏紀錄
+- 每日狀況
+- 菜單規劃
+- 庫存異動
+
+首頁會顯示資料統計、庫存概覽、最近菜單規劃，以及一個依規則自動算出的菜單建議卡片。
+
+## 技術選型
+
+- Next.js 16 App Router
+- Prisma ORM
+- MySQL
+- React Server Components
+- Route Handlers for JSON API
+
+## MySQL Schema
+
+正式 schema 來源：
+
+- [prisma/schema.prisma](./prisma/schema.prisma)
+- [prisma/mysql-schema.sql](./prisma/mysql-schema.sql)
+
+資料表包含：
+
+- `InventoryItem`
+- `IngredientTrait`
+- `FeedingRule`
+- `SensitivityRecord`
+- `DailyCondition`
+- `MenuPlan`
+- `MenuPlanItem`
+- `InventoryMovement`
+
+## 本地開發
+
+### 1. 準備 MySQL
+
+先建立一個本地資料庫，例如：
+
+```sql
+CREATE DATABASE baby_food_planner CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+### 2. 設定環境變數
+
+修改 [.env](./.env) 的 `DATABASE_URL`，例如：
+
+```bash
+DATABASE_URL="mysql://root:password@127.0.0.1:3306/baby_food_planner"
+```
+
+### 3. 安裝與建表
+
+```bash
+npm install
+npm run db:push
+npm run db:seed
+```
+
+`db:seed` 會依照原本 Apps Script 的資料型態，隨機建立每個主要模組各 5 筆示範資料。
+
+### 4. 啟動 Next.js
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+啟動後可測試：
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- 網站首頁: `http://localhost:3000`
+- JSON API: `http://localhost:3000/api/dashboard`
+- 菜單建議 API: `http://localhost:3000/api/recommendation`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 5. 建議的本地驗證
 
-## Learn More
+```bash
+npm run lint
+npm run build
+```
 
-To learn more about Next.js, take a look at the following resources:
+如果想直接驗證 API：
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+curl http://localhost:3000/api/dashboard
+curl http://localhost:3000/api/recommendation
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Zeabur 部署流程
 
-## Deploy on Vercel
+### 1. 將程式碼推到 GitHub
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+把 `nextjs_app` 當成獨立專案推到 GitHub repository。
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 2. 在 Zeabur 建立專案
+
+在 Zeabur 後台：
+
+1. 建立新 Project
+2. 匯入 GitHub repository
+3. 新增一個 MySQL Service
+4. 新增一個 Node.js / Next.js Service 指向本專案
+
+### 3. 設定環境變數
+
+在 Next.js Service 中設定：
+
+```bash
+DATABASE_URL=mysql://USER:PASSWORD@HOST:3306/DATABASE
+```
+
+建議直接使用 Zeabur MySQL Service 提供的連線字串。
+
+### 4. Build / Start 設定
+
+通常 Zeabur 會自動辨識 Node 專案；若需要手動指定，可使用：
+
+- Install Command: `npm install`
+- Build Command: `npm run build`
+- Start Command: `npm run start`
+
+### 5. 初始化資料庫
+
+第一次部署後，進入 Zeabur 的 Shell 或 One-off Command 執行：
+
+```bash
+npm run db:push
+npm run db:seed
+```
+
+如果你之後要改 schema，建議流程是：
+
+1. 本地修改 [prisma/schema.prisma](./prisma/schema.prisma)
+2. 本地驗證 `npm run db:push`
+3. 重新部署到 Zeabur
+4. 在 Zeabur 執行 `npm run db:push`
+
+## 目前實作範圍
+
+這一版重點是先完成「從 Apps Script 遷移到可部署的 Next.js + MySQL 架構」：
+
+- 完整 Prisma schema
+- 可直接用的 seed script
+- 首頁 dashboard
+- JSON API
+- Zeabur 部署說明
+
+如果下一步要接近原專案完整功能，建議優先做：
+
+1. 補上 CRUD 表單與編輯頁
+2. 把菜單規劃改成可儲存/刪除
+3. 接回 OpenAI 菜單建議 API
