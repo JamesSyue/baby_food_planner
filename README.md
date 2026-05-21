@@ -125,6 +125,8 @@ DATABASE_URL=mysql://USER:PASSWORD@HOST:3306/DATABASE
 - Build Command: `npm run build`
 - Start Command: `npm run start`
 
+如果 Zeabur 在 `npm install` 階段失敗，請不要把 `prisma generate` 放在 install hook。這個專案已改成只在 `npm run build` 時執行 Prisma generate，避免安裝階段因環境變數或資料庫服務尚未就緒而中斷。
+
 ### 5. 初始化資料庫
 
 第一次部署後，進入 Zeabur 的 Shell 或 One-off Command 執行：

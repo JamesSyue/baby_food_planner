@@ -1,0 +1,110 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model InventoryItem {
+  id                   Int      @id @default(autoincrement())
+  code                 String   @unique @db.VarChar(32)
+  name                 String   @db.VarChar(120)
+  category             String   @db.VarChar(40)
+  specGrams            Int
+  stockUnits           Int
+  suggestionLimitGrams Int?
+  status               String   @db.VarChar(40)
+  updatedAt            DateTime @default(now())
+  storageMethod        String?  @db.VarChar(40)
+  expiresAt            DateTime?
+  notes                String?  @db.VarChar(255)
+}
+
+model IngredientTrait {
+  id              Int     @id @default(autoincrement())
+  ingredientName  String  @unique @db.VarChar(120)
+  primaryType     String  @db.VarChar(40)
+  solubleFiber    String? @db.VarChar(20)
+  insolubleFiber  String? @db.VarChar(20)
+  fiberLevel      String? @db.VarChar(20)
+  easyGas         String? @db.VarChar(20)
+  forConstipation String? @db.VarChar(20)
+  forDiarrhea     String? @db.VarChar(20)
+  forPhlegm       String? @db.VarChar(20)
+  sensitivity     String? @db.VarChar(40)
+  adverseNotes    String? @db.VarChar(255)
+  nutritionNotes  String? @db.VarChar(255)
+}
+
+model FeedingRule {
+  id         Int     @id @default(autoincrement())
+  code       String  @unique @db.VarChar(32)
+  item       String  @db.VarChar(80)
+  mealType   String  @db.VarChar(40)
+  category   String  @db.VarChar(40)
+  limitGrams Int
+  checkType  String  @db.VarChar(40)
+  notes      String? @db.VarChar(255)
+}
+
+model SensitivityRecord {
+  id             Int      @id @default(autoincrement())
+  recordedOn     DateTime
+  ingredientName String   @db.VarChar(120)
+  grams          Int
+  daySequence    Int
+  result         String?  @db.VarChar(40)
+  symptomNotes   String?  @db.VarChar(255)
+  isCompleted    Boolean  @default(false)
+}
+
+model DailyCondition {
+  id               Int      @id @default(autoincrement())
+  recordedOn       DateTime
+  stoolCondition   String?  @db.VarChar(40)
+  fever            String?  @db.VarChar(40)
+  coughPhlegm      String?  @db.VarChar(40)
+  appetite         String?  @db.VarChar(40)
+  waterMilkStatus  String?  @db.VarChar(80)
+  notes            String?  @db.VarChar(255)
+  pairingDirection String?  @db.VarChar(255)
+}
+
+model MenuPlan {
+  id            Int            @id @default(autoincrement())
+  planDate      DateTime
+  mealType      String         @db.VarChar(40)
+  status        String         @db.VarChar(40)
+  totalGrams    Int
+  conditionText String?        @db.VarChar(255)
+  notes         String?        @db.VarChar(255)
+  items         MenuPlanItem[]
+}
+
+model MenuPlanItem {
+  id             Int      @id @default(autoincrement())
+  menuPlanId     Int
+  ingredientName String   @db.VarChar(120)
+  itemType       String   @db.VarChar(40)
+  grams          Int
+  sortOrder      Int
+  menuPlan       MenuPlan @relation(fields: [menuPlanId], references: [id], onDelete: Cascade)
+
+  @@index([menuPlanId, sortOrder])
+}
+
+model InventoryMovement {
+  id             Int      @id @default(autoincrement())
+  movedAt        DateTime
+  ingredientName String   @db.VarChar(120)
+  movementType   String   @db.VarChar(40)
+  grams          Int
+  sourceOrUse    String?  @db.VarChar(120)
+  notes          String?  @db.VarChar(255)
+}
