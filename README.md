@@ -121,11 +121,13 @@ DATABASE_URL=mysql://USER:PASSWORD@HOST:3306/DATABASE
 
 通常 Zeabur 會自動辨識 Node 專案；若需要手動指定，可使用：
 
-- Install Command: `npm install`
+- Install Command: `npm ci`
 - Build Command: `npm run build`
 - Start Command: `npm run start`
 
 如果 Zeabur 在 `npm install` 階段失敗，請不要把 `prisma generate` 放在 install hook。這個專案已改成只在 `npm run build` 時執行 Prisma generate，避免安裝階段因環境變數或資料庫服務尚未就緒而中斷。
+
+另外建議在 `package.json` 指定 `node` engine，而不只指定 `npm`，讓 Zeabur 更容易選到符合 Next.js 16 與 Prisma 7 的執行環境。
 
 ### 5. 初始化資料庫
 
