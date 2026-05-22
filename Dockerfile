@@ -41,6 +41,11 @@ ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
 ENV PORT=8080
 
+COPY --from=builder /src/package.json ./package.json
+COPY --from=builder /src/package-lock.json ./package-lock.json
+COPY --from=builder /src/prisma.config.ts ./prisma.config.ts
+COPY --from=builder /src/prisma ./prisma
+COPY --from=builder /src/node_modules ./node_modules
 COPY --from=builder /src/public ./public
 COPY --from=builder /src/.next/standalone ./
 COPY --from=builder /src/.next/static ./.next/static
