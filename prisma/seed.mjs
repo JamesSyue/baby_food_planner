@@ -1,6 +1,14 @@
 import { PrismaClient } from "@prisma/client";
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 
-const prisma = new PrismaClient();
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error("Missing DATABASE_URL environment variable.");
+}
+
+const adapter = new PrismaMariaDb(connectionString);
+const prisma = new PrismaClient({ adapter });
 
 const inventoryBase = [
   ["V003", "高麗菜泥", "蔬菜", 50, 6, 90, "可用", "冷凍", "易脹氣者少量"],
