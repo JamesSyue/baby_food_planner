@@ -5,12 +5,18 @@ LABEL framework="next.js"
 
 WORKDIR /src
 
+ENV NPM_CONFIG_REGISTRY=https://registry.npmjs.org/
+
 FROM base AS deps
 
 COPY package*.json ./
 
 RUN --mount=type=cache,target=/root/.npm \
-  node -v && npm -v && npm ci --no-audit --no-fund --loglevel=notice || ( \
+  npm config delete proxy || true && \
+  npm config delete https-proxy || true && \
+  npm config set registry "$NPM_CONFIG_REGISTRY" && \
+  npm config get registry && \
+  node -v && npm -v && npm ci --registry="$NPM_CONFIG_REGISTRY" --no-audit --no-fund --loglevel=notice || ( \
     echo "==== /root/.npm/_logs ====" && \
     ls -lah /root/.npm/_logs || true && \
     for f in /root/.npm/_logs/*; do \
