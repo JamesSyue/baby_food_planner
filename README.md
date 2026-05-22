@@ -125,7 +125,17 @@ DATABASE_URL=mysql://USER:PASSWORD@HOST:3306/DATABASE
 - Build Command: `npm run build`
 - Start Command: `npm run start`
 
-如果 Zeabur 在 `npm install` 階段失敗，請不要把 `prisma generate` 放在 install hook。這個專案已改成只在 `npm run build` 時執行 Prisma generate，避免安裝階段因環境變數或資料庫服務尚未就緒而中斷。
+如果 Zeabur 在 `npm install` 階段失敗，請先檢查 Zeabur Service 的自訂 Install Command。不要使用 `npm cache clean --force && npm install`，這會清掉快取並增加 npm 自身異常的機率。
+
+這個專案建議直接在 Zeabur 後台明確改成：
+
+- Install Command: `npm ci`
+
+如果 `npm ci` 因 lockfile 問題失敗，再退回：
+
+- Install Command: `npm install`
+
+這個專案已改成只在 `npm run build` 時執行 Prisma generate，避免安裝階段因環境變數或資料庫服務尚未就緒而中斷。
 
 另外建議在 `package.json` 指定 `node` engine，而不只指定 `npm`，讓 Zeabur 更容易選到符合 Next.js 16 與 Prisma 7 的執行環境。
 
