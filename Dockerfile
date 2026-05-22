@@ -9,7 +9,7 @@ ENV NPM_CONFIG_REGISTRY=https://registry.npmjs.org/
 
 FROM base AS deps
 
-COPY package*.json ./
+COPY package*.json .npmrc ./
 
 RUN --mount=type=cache,target=/root/.npm \
   npm config delete proxy || true && \
