@@ -394,6 +394,147 @@ table span,
   margin-top: 18px;
 }
 
+.ai-menu-panel {
+  overflow: hidden;
+}
+
+.ai-menu-panel-head {
+  align-items: center;
+}
+
+.ai-menu-panel-copy {
+  max-width: 34ch;
+  color: rgba(33, 50, 41, 0.72);
+  line-height: 1.6;
+}
+
+.ai-menu-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.95fr) auto minmax(0, 1.3fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.ai-menu-prompt-field {
+  display: grid;
+  gap: 8px;
+}
+
+.ai-menu-prompt-field span,
+.ai-menu-result-head span,
+.ai-menu-card-kicker {
+  color: var(--sage);
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ai-menu-prompt-field textarea {
+  width: 100%;
+  min-height: 280px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(255, 254, 251, 0.92);
+  color: var(--foreground);
+  line-height: 1.7;
+  resize: vertical;
+}
+
+.ai-menu-action-wrap {
+  display: grid;
+  place-items: center;
+  align-self: center;
+}
+
+.ai-menu-submit {
+  min-width: 132px;
+  border: 0;
+  cursor: pointer;
+}
+
+.ai-menu-submit:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.ai-menu-result-panel {
+  display: grid;
+  gap: 14px;
+  min-height: 280px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255, 250, 244, 0.96), rgba(236, 241, 232, 0.92));
+}
+
+.ai-menu-result-body,
+.ai-menu-cards {
+  display: grid;
+  gap: 14px;
+}
+
+.ai-menu-empty-state,
+.ai-menu-error,
+.ai-menu-overview-card,
+.ai-menu-card {
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: rgba(255, 254, 251, 0.78);
+}
+
+.ai-menu-error {
+  border-color: rgba(203, 124, 93, 0.3);
+  background: rgba(255, 243, 239, 0.9);
+  color: var(--terracotta);
+}
+
+.ai-menu-overview-card,
+.ai-menu-card,
+.ai-menu-card-section,
+.ai-menu-ingredient-list {
+  display: grid;
+  gap: 12px;
+}
+
+.ai-menu-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: start;
+}
+
+.ai-menu-card h3,
+.ai-menu-overview-card h3 {
+  font-family: var(--font-geist-mono), "IBM Plex Mono", monospace;
+  font-size: 1.05rem;
+}
+
+.ai-menu-card-section h4 {
+  color: var(--terracotta);
+  font-size: 0.95rem;
+}
+
+.ai-menu-ingredient-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ai-menu-ingredient-item {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(223, 232, 219, 0.44);
+}
+
+.ai-menu-note-list {
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+}
+
 .detail-sections-grid {
   display: grid;
   gap: 18px;
@@ -803,6 +944,8 @@ thead th {
 
 @media (max-width: 980px) {
   .hero,
+  .ai-menu-layout,
+  .ai-menu-ingredient-list,
   .content-grid,
   .tables-grid,
   .inventory-filters,
@@ -819,6 +962,7 @@ thead th {
   .panel-head,
   .app-alert-head,
   .trait-modal-head,
+  .ai-menu-card-head,
   .recommendation-item,
   .plan-card,
   .signal-card {

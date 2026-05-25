@@ -1,3 +1,4 @@
+import { AiMenuPlanner } from "@/app/components/ai-menu-planner";
 import { GoogleSheetSyncButton } from "@/app/components/google-sheet-sync-button";
 import { InventoryTable } from "@/app/components/inventory-table";
 import { RulesTable } from "@/app/components/rules-table";
@@ -25,14 +26,6 @@ export default async function Home() {
           <span className={`status-dot ${snapshot.connected ? "ok" : "warn"}`} />
           <strong>{snapshot.connected ? "資料庫已連線" : "尚未連上資料庫"}</strong>
           <p>{snapshot.message}</p>
-          <div className="hero-actions">
-            <a className="button-primary" href="/api/dashboard">
-              查看 JSON API
-            </a>
-            <a className="button-secondary" href="/api/recommendation">
-              查看菜單建議 API
-            </a>
-          </div>
           <GoogleSheetSyncButton />
         </div>
       </section>
@@ -45,6 +38,10 @@ export default async function Home() {
             <span>{stat.caption}</span>
           </article>
         ))}
+      </section>
+
+      <section className="inventory-section">
+        <AiMenuPlanner />
       </section>
 
       <section className="inventory-section">

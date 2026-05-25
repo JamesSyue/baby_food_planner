@@ -41,14 +41,3 @@ export async function getDashboardSnapshot() {
     };
   }
 }
-
-export async function getRecommendationSnapshot() {
-  return {
-    title: "下一餐建議",
-    condition: "首頁已移除",
-    targetGrams: 0,
-    totalGrams: 0,
-    items: [],
-    warnings: ["首頁已移除下一餐建議區塊，如需恢復可再接回推薦邏輯。"],
-  };
-}
