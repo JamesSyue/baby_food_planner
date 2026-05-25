@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 
 type SyncSummary = {
   key: string;
@@ -22,6 +23,33 @@ export function GoogleSheetSyncButton() {
   const [isPending, startTransition] = useTransition();
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<SyncResponse | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  useEffect(() => {
+    if (!result) {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setResult(null);
+      }
+    }
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [result]);
 
   async function handleSync() {
     setResult(null);
@@ -75,27 +103,48 @@ export function GoogleSheetSyncButton() {
         </button>
 
         {isLoading || isPending ? <p className="sync-hint">同步進行中，請稍候。</p> : null}
-
-        {result ? (
-          <div className={`sync-result ${result.ok ? "success" : "error"}`}>
-            <strong>{result.ok ? "同步完成" : "同步失敗"}</strong>
-            {result.message ? <p>{result.message}</p> : null}
-            {result.updatedAt ? <p>更新時間：{new Date(result.updatedAt).toLocaleString("zh-TW")}</p> : null}
-            {result.summaries?.length ? (
-              <div className="sync-summary-list">
-                {result.summaries.map((summary) => (
-                  <article key={summary.key} className="sync-summary-card">
-                    <strong>
-                      {summary.label}：{summary.count} 筆
-                    </strong>
-                    <p>{summary.items.length ? summary.items.join("、") : "本次沒有可寫入的有效資料。"}</p>
-                  </article>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
       </div>
+
+      {mounted && result
+        ? createPortal(
+            <div className="app-alert-overlay" onClick={() => setResult(null)} role="presentation">
+              <div
+                className={`app-alert-modal ${result.ok ? "success" : "error"}`}
+                role="alertdialog"
+                aria-modal="true"
+                aria-labelledby="sync-result-title"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="app-alert-head">
+                  <div>
+                    <p className="eyebrow">Google Sheet Sync</p>
+                    <h3 id="sync-result-title">{result.ok ? "同步完成" : "同步失敗"}</h3>
+                  </div>
+                  <button type="button" className="app-alert-close" onClick={() => setResult(null)}>
+                    關閉
+                  </button>
+                </div>
+
+                {result.message ? <p className="app-alert-message">{result.message}</p> : null}
+                {result.updatedAt ? <p className="app-alert-meta">更新時間：{new Date(result.updatedAt).toLocaleString("zh-TW")}</p> : null}
+
+                {result.summaries?.length ? (
+                  <div className="sync-summary-list">
+                    {result.summaries.map((summary) => (
+                      <article key={summary.key} className="sync-summary-card">
+                        <strong>
+                          {summary.label}：{summary.count} 筆
+                        </strong>
+                        <p>{summary.items.length ? summary.items.join("、") : "本次沒有可寫入的有效資料。"}</p>
+                      </article>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </>
   );
 }

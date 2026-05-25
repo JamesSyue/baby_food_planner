@@ -12,7 +12,34 @@ type SheetSyncSummary = {
 type SheetRows = string[][];
 
 const GOOGLE_TOKEN_AUDIENCE = "https://oauth2.googleapis.com/token";
-const GOOGLE_SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets.readonly";
+const GOOGLE_SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
+const INVENTORY_SHEET_HEADERS = [
+  "食材ID",
+  "食材名稱",
+  "類型",
+  "規格(g)",
+  "庫存份數",
+  "每次建議上限(g)",
+  "狀態",
+  "最後更新日",
+  "保存方式",
+  "使用期限",
+  "備註",
+] as const;
+
+type InventoryWriteItem = {
+  code: string;
+  name: string;
+  category: string;
+  specGrams: number;
+  stockUnits: number;
+  suggestionLimitGrams: number | null;
+  status: string;
+  updatedAt: string | Date;
+  storageMethod: string | null;
+  expiresAt: string | Date | null;
+  notes: string | null;
+};
 
 function getRequiredEnv(name: string) {
   const value = process.env[name];
@@ -107,6 +134,48 @@ async function fetchSheetRows(spreadsheetIdOrUrl: string, range: string, accessT
   return json.values ?? [];
 }
 
+async function clearSheetRange(spreadsheetIdOrUrl: string, range: string, accessToken: string) {
+  const spreadsheetId = extractSpreadsheetId(spreadsheetIdOrUrl);
+  const response = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}:clear`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({}),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to clear spreadsheet ${spreadsheetId}: ${response.status} ${await response.text()}`);
+  }
+}
+
+async function updateSheetRows(spreadsheetIdOrUrl: string, range: string, values: string[][], accessToken: string) {
+  const spreadsheetId = extractSpreadsheetId(spreadsheetIdOrUrl);
+  const response = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        range,
+        majorDimension: "ROWS",
+        values,
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to update spreadsheet ${spreadsheetId}: ${response.status} ${await response.text()}`);
+  }
+}
+
 function rowsToObjects(rows: SheetRows) {
   if (!rows.length) return [] as Record<string, string>[];
   const headers = rows[0].map((header) => String(header || "").replace(/\s+/g, ""));
@@ -134,6 +203,10 @@ function parseDate(value: string) {
   if (!trimmed) return null;
   const date = new Date(trimmed);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDateForSheet(value: Date | null) {
+  return value ? value.toISOString().slice(0, 10) : "";
 }
 
 function dedupeByKey<T>(items: T[], keyFactory: (item: T) => string) {
@@ -284,6 +357,94 @@ function mapDailyRows(rows: Record<string, string>[]) {
     .filter((row): row is NonNullable<typeof row> => Boolean(row));
 }
 
+function normalizeInventoryWriteItems(items: InventoryWriteItem[]) {
+  return dedupeByKey(
+    items.map((item) => {
+      const code = String(item.code || "").trim();
+      const name = String(item.name || "").trim();
+      const category = String(item.category || "").trim();
+      const status = String(item.status || "").trim() || "可用";
+      const specGrams = Number(item.specGrams);
+      const stockUnits = Number(item.stockUnits);
+
+      if (!code || !name || !category) {
+        throw new Error("食材ID、食材名稱、類型不可空白。");
+      }
+
+      if (!Number.isFinite(specGrams) || specGrams < 0 || !Number.isFinite(stockUnits) || stockUnits < 0) {
+        throw new Error(`食材「${name}」的規格或庫存數量格式不正確。`);
+      }
+
+      const suggestionLimitGrams = item.suggestionLimitGrams === null || item.suggestionLimitGrams === undefined || item.suggestionLimitGrams === ("" as never)
+        ? null
+        : Number(item.suggestionLimitGrams);
+
+      if (suggestionLimitGrams !== null && (!Number.isFinite(suggestionLimitGrams) || suggestionLimitGrams < 0)) {
+        throw new Error(`食材「${name}」的每次建議上限格式不正確。`);
+      }
+
+      const updatedAt = item.updatedAt instanceof Date ? item.updatedAt : parseDate(String(item.updatedAt || "")) ?? new Date();
+      const expiresAt = item.expiresAt instanceof Date ? item.expiresAt : parseDate(String(item.expiresAt || ""));
+
+      return {
+        code,
+        name,
+        category,
+        specGrams,
+        stockUnits,
+        suggestionLimitGrams,
+        status,
+        updatedAt,
+        storageMethod: String(item.storageMethod || "").trim() || null,
+        expiresAt,
+        notes: String(item.notes || "").trim() || null,
+      };
+    }),
+    (item) => item.code,
+  );
+}
+
+export async function replaceInventoryInDatabaseAndSheet(items: InventoryWriteItem[]) {
+  const inventory = normalizeInventoryWriteItems(items);
+  const accessToken = await fetchGoogleAccessToken();
+  const spreadsheetId = getRequiredEnv("GOOGLE_SHEETS_SPREADSHEET_ID");
+  const inventorySheetName = getRequiredEnv("GOOGLE_SHEET_TAB_INVENTORY");
+
+  await prisma.$transaction(async (transaction) => {
+    await transaction.inventoryItem.deleteMany();
+
+    if (inventory.length) {
+      await transaction.inventoryItem.createMany({ data: inventory });
+    }
+  });
+
+  const values = [
+    [...INVENTORY_SHEET_HEADERS],
+    ...inventory.map((item) => [
+      item.code,
+      item.name,
+      item.category,
+      String(item.specGrams),
+      String(item.stockUnits),
+      item.suggestionLimitGrams === null ? "" : String(item.suggestionLimitGrams),
+      item.status,
+      formatDateForSheet(item.updatedAt),
+      item.storageMethod || "",
+      formatDateForSheet(item.expiresAt),
+      item.notes || "",
+    ]),
+  ];
+
+  await clearSheetRange(spreadsheetId, `${inventorySheetName}!A:ZZ`, accessToken);
+  await updateSheetRows(spreadsheetId, `${inventorySheetName}!A1`, values, accessToken);
+
+  return {
+    updatedAt: new Date().toISOString(),
+    count: inventory.length,
+    items: inventory.slice(0, 12).map((item) => `${item.code} ${item.name}`),
+  };
+}
+
 export async function syncGoogleSheetsToDatabase() {
   const accessToken = await fetchGoogleAccessToken();
   const spreadsheetId = getRequiredEnv("GOOGLE_SHEETS_SPREADSHEET_ID");
@@ -361,4 +522,4 @@ export async function syncGoogleSheetsToDatabase() {
   };
 }
 
-export type { SheetSyncSummary };
+export type { InventoryWriteItem, SheetSyncSummary };

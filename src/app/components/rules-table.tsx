@@ -111,6 +111,7 @@ export function RulesTable({ rules }: RulesTableProps) {
               <th>分類</th>
               <th>限制克數</th>
               <th>檢查方式</th>
+              <th>備註</th>
             </tr>
           </thead>
           <tbody>
@@ -118,19 +119,17 @@ export function RulesTable({ rules }: RulesTableProps) {
               filteredRules.map((rule) => (
                 <tr key={rule.id}>
                   <td>{rule.code}</td>
-                  <td>
-                    <strong>{rule.item}</strong>
-                    {rule.notes ? <span>{rule.notes}</span> : null}
-                  </td>
+                  <td>{rule.item}</td>
                   <td>{rule.mealType}</td>
                   <td>{rule.category}</td>
                   <td>{rule.limitGrams}g</td>
                   <td>{rule.checkType}</td>
+                  <td>{rule.notes || "-"}</td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={6} className="empty-cell">
+                <td colSpan={7} className="empty-cell">
                   目前沒有符合條件的規則資料
                 </td>
               </tr>

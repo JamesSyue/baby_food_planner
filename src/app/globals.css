@@ -206,23 +206,6 @@ select {
   font-size: 0.92rem;
 }
 
-.sync-result {
-  display: grid;
-  gap: 10px;
-  padding: 14px 16px;
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.sync-result.success {
-  background: rgba(134, 212, 143, 0.14);
-}
-
-.sync-result.error {
-  background: rgba(203, 124, 93, 0.16);
-}
-
 .sync-summary-list {
   display: grid;
   gap: 10px;
@@ -231,12 +214,13 @@ select {
 .sync-summary-card {
   padding: 12px 14px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid var(--line);
 }
 
 .sync-summary-card p {
   margin-top: 6px;
-  color: rgba(249, 244, 238, 0.84);
+  color: rgba(33, 50, 41, 0.74);
   font-size: 0.92rem;
   line-height: 1.6;
 }
@@ -262,6 +246,62 @@ select {
   background: rgba(255, 250, 244, 0.96);
   color: var(--foreground);
   box-shadow: var(--shadow);
+}
+
+.app-alert-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(33, 50, 41, 0.42);
+  backdrop-filter: blur(8px);
+}
+
+.app-alert-modal {
+  display: grid;
+  gap: 16px;
+  width: min(720px, calc(100vw - 32px));
+  max-height: min(82vh, 920px);
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(255, 250, 244, 0.98), rgba(239, 246, 236, 0.96));
+  box-shadow: var(--shadow);
+}
+
+.app-alert-modal.error {
+  background: linear-gradient(180deg, rgba(255, 247, 244, 0.98), rgba(248, 231, 225, 0.96));
+}
+
+.app-alert-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: start;
+}
+
+.app-alert-head h3 {
+  font-family: var(--font-geist-mono), "IBM Plex Mono", monospace;
+  font-size: clamp(1.4rem, 3vw, 2rem);
+}
+
+.app-alert-close {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--sage-dark);
+  cursor: pointer;
+}
+
+.app-alert-message,
+.app-alert-meta {
+  color: rgba(33, 50, 41, 0.76);
+  line-height: 1.7;
 }
 
 .sync-spinner {
@@ -564,6 +604,62 @@ table span,
   font-size: clamp(2rem, 4vw, 3rem);
 }
 
+.edit-form-filters {
+  margin-top: 18px;
+}
+
+.edit-page-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
+.inventory-edit-table input {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 254, 251, 0.9);
+  color: var(--foreground);
+}
+
+.edit-cell-field {
+  display: grid;
+  gap: 6px;
+}
+
+.inventory-edit-table input.input-error {
+  border-color: rgba(203, 124, 93, 0.8);
+  background: rgba(255, 244, 240, 0.96);
+}
+
+.field-error-text,
+.edit-page-validation-note {
+  color: var(--terracotta);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.edit-row-delete {
+  min-width: 72px;
+  border: 0;
+  cursor: pointer;
+}
+
+.edit-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-top: 20px;
+}
+
+.edit-page-hint {
+  color: rgba(33, 50, 41, 0.72);
+  line-height: 1.6;
+}
+
 .panel {
   background: var(--panel);
   border-radius: 26px;
@@ -694,6 +790,7 @@ thead th {
   }
 
   .panel-head,
+  .app-alert-head,
   .trait-modal-head,
   .recommendation-item,
   .plan-card,

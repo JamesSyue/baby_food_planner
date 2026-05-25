@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 
 type InventoryItem = {
   id: number;
@@ -41,6 +42,7 @@ export function InventoryTable({ inventory }: InventoryTableProps) {
   const [loadingName, setLoadingName] = useState<string | null>(null);
   const [selectedTrait, setSelectedTrait] = useState<IngredientTrait | null>(null);
   const [traitErrorMessage, setTraitErrorMessage] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   const categoryOptions = useMemo(
     () => Array.from(new Set(inventory.map((item) => item.category).filter(Boolean))).sort((left, right) => left.localeCompare(right, "zh-Hant")),
@@ -73,6 +75,11 @@ export function InventoryTable({ inventory }: InventoryTableProps) {
   useEffect(() => {
     setPage(1);
   }, [searchTerm, categoryFilter, statusFilter]);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
 
   useEffect(() => {
     if (!selectedTrait && !traitErrorMessage) {
@@ -268,105 +275,108 @@ export function InventoryTable({ inventory }: InventoryTableProps) {
         </button>
       </div>
 
-      {(selectedTrait || traitErrorMessage) && (
-        <div className="trait-modal-overlay" onClick={closeTraitModal} role="presentation">
-          <div
-            className="trait-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="trait-modal-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="trait-modal-head">
-              <div>
-                <p className="eyebrow">Ingredient Trait</p>
-                <h3 id="trait-modal-title">{selectedTrait ? `${selectedTrait.ingredientName} 的食材特性` : "食材特性"}</h3>
+      {mounted && (selectedTrait || traitErrorMessage)
+        ? createPortal(
+            <div className="trait-modal-overlay" onClick={closeTraitModal} role="presentation">
+              <div
+                className="trait-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="trait-modal-title"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="trait-modal-head">
+                  <div>
+                    <p className="eyebrow">Ingredient Trait</p>
+                    <h3 id="trait-modal-title">{selectedTrait ? `${selectedTrait.ingredientName} 的食材特性` : "食材特性"}</h3>
+                  </div>
+                  <button type="button" className="trait-modal-close" onClick={closeTraitModal}>
+                    關閉
+                  </button>
+                </div>
+
+                {traitErrorMessage ? (
+                  <div className="trait-modal-error">{traitErrorMessage}</div>
+                ) : selectedTrait ? (
+                  <div className="trait-modal-body">
+                    <section className="trait-group">
+                      <h4>基本資料</h4>
+                      <dl className="trait-grid">
+                        <div>
+                          <dt>食材名稱</dt>
+                          <dd>{selectedTrait.ingredientName}</dd>
+                        </div>
+                        <div>
+                          <dt>主要類型</dt>
+                          <dd>{selectedTrait.primaryType}</dd>
+                        </div>
+                        <div>
+                          <dt>容易脹氣</dt>
+                          <dd>{renderValue(selectedTrait.easyGas)}</dd>
+                        </div>
+                      </dl>
+                    </section>
+
+                    <section className="trait-group">
+                      <h4>纖維</h4>
+                      <dl className="trait-grid">
+                        <div>
+                          <dt>水溶性纖維</dt>
+                          <dd>{renderValue(selectedTrait.solubleFiber)}</dd>
+                        </div>
+                        <div>
+                          <dt>非水溶性纖維</dt>
+                          <dd>{renderValue(selectedTrait.insolubleFiber)}</dd>
+                        </div>
+                        <div>
+                          <dt>纖維</dt>
+                          <dd>{renderValue(selectedTrait.fiberLevel)}</dd>
+                        </div>
+                      </dl>
+                    </section>
+
+                    <section className="trait-group">
+                      <h4>試敏與適用情境</h4>
+                      <dl className="trait-grid">
+                        <div>
+                          <dt>試敏狀態</dt>
+                          <dd>{renderValue(selectedTrait.sensitivity)}</dd>
+                        </div>
+                        <div>
+                          <dt>適合山羊便/硬便</dt>
+                          <dd>{renderValue(selectedTrait.forConstipation)}</dd>
+                        </div>
+                        <div>
+                          <dt>腹瀉時建議</dt>
+                          <dd>{renderValue(selectedTrait.forDiarrhea)}</dd>
+                        </div>
+                        <div>
+                          <dt>適合感冒有痰</dt>
+                          <dd>{renderValue(selectedTrait.forPhlegm)}</dd>
+                        </div>
+                      </dl>
+                    </section>
+
+                    <section className="trait-group">
+                      <h4>備註</h4>
+                      <dl className="trait-stack">
+                        <div>
+                          <dt>過敏/不適紀錄</dt>
+                          <dd>{renderValue(selectedTrait.adverseNotes)}</dd>
+                        </div>
+                        <div>
+                          <dt>營養備註</dt>
+                          <dd>{renderValue(selectedTrait.nutritionNotes)}</dd>
+                        </div>
+                      </dl>
+                    </section>
+                  </div>
+                ) : null}
               </div>
-              <button type="button" className="trait-modal-close" onClick={closeTraitModal}>
-                關閉
-              </button>
-            </div>
-
-            {traitErrorMessage ? (
-              <div className="trait-modal-error">{traitErrorMessage}</div>
-            ) : selectedTrait ? (
-              <div className="trait-modal-body">
-                <section className="trait-group">
-                  <h4>基本資料</h4>
-                  <dl className="trait-grid">
-                    <div>
-                      <dt>食材名稱</dt>
-                      <dd>{selectedTrait.ingredientName}</dd>
-                    </div>
-                    <div>
-                      <dt>主要類型</dt>
-                      <dd>{selectedTrait.primaryType}</dd>
-                    </div>
-                    <div>
-                      <dt>容易脹氣</dt>
-                      <dd>{renderValue(selectedTrait.easyGas)}</dd>
-                    </div>
-                  </dl>
-                </section>
-
-                <section className="trait-group">
-                  <h4>纖維</h4>
-                  <dl className="trait-grid">
-                    <div>
-                      <dt>水溶性纖維</dt>
-                      <dd>{renderValue(selectedTrait.solubleFiber)}</dd>
-                    </div>
-                    <div>
-                      <dt>非水溶性纖維</dt>
-                      <dd>{renderValue(selectedTrait.insolubleFiber)}</dd>
-                    </div>
-                    <div>
-                      <dt>纖維</dt>
-                      <dd>{renderValue(selectedTrait.fiberLevel)}</dd>
-                    </div>
-                  </dl>
-                </section>
-
-                <section className="trait-group">
-                  <h4>試敏與適用情境</h4>
-                  <dl className="trait-grid">
-                    <div>
-                      <dt>試敏狀態</dt>
-                      <dd>{renderValue(selectedTrait.sensitivity)}</dd>
-                    </div>
-                    <div>
-                      <dt>適合山羊便/硬便</dt>
-                      <dd>{renderValue(selectedTrait.forConstipation)}</dd>
-                    </div>
-                    <div>
-                      <dt>腹瀉時建議</dt>
-                      <dd>{renderValue(selectedTrait.forDiarrhea)}</dd>
-                    </div>
-                    <div>
-                      <dt>適合感冒有痰</dt>
-                      <dd>{renderValue(selectedTrait.forPhlegm)}</dd>
-                    </div>
-                  </dl>
-                </section>
-
-                <section className="trait-group">
-                  <h4>備註</h4>
-                  <dl className="trait-stack">
-                    <div>
-                      <dt>過敏/不適紀錄</dt>
-                      <dd>{renderValue(selectedTrait.adverseNotes)}</dd>
-                    </div>
-                    <div>
-                      <dt>營養備註</dt>
-                      <dd>{renderValue(selectedTrait.nutritionNotes)}</dd>
-                    </div>
-                  </dl>
-                </section>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      )}
+            </div>,
+            document.body,
+          )
+        : null}
     </article>
   );
 }
