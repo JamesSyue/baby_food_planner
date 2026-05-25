@@ -59,6 +59,53 @@ select {
   padding: 32px 0 56px;
 }
 
+.top-nav-wrap {
+  position: sticky;
+  top: 16px;
+  z-index: 30;
+  display: grid;
+  justify-content: start;
+  width: min(1200px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding-top: 16px;
+}
+
+.menu-toggle-button {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 250, 244, 0.92);
+  color: var(--sage-dark);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+
+.menu-panel {
+  display: grid;
+  gap: 8px;
+  min-width: 220px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 250, 244, 0.96);
+  box-shadow: var(--shadow);
+}
+
+.menu-link {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: rgba(33, 50, 41, 0.82);
+}
+
+.menu-link.active,
+.menu-link:hover {
+  background: var(--sage-soft);
+  color: var(--sage-dark);
+}
+
 .hero,
 .panel,
 .stat-card {
@@ -296,8 +343,81 @@ table span,
   grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.95fr);
 }
 
+.inventory-section {
+  margin-top: 18px;
+}
+
 .tables-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.inventory-panel-head {
+  align-items: center;
+}
+
+.inventory-pagination-summary,
+.inventory-pagination-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.inventory-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(180px, 0.8fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.inventory-filter-field {
+  display: grid;
+  gap: 8px;
+}
+
+.inventory-filter-field span {
+  color: var(--sage);
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.inventory-filter-field input,
+.inventory-filter-field select {
+  min-height: 44px;
+  width: 100%;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 254, 251, 0.9);
+  color: var(--foreground);
+}
+
+.inventory-filter-field input::placeholder {
+  color: rgba(33, 50, 41, 0.45);
+}
+
+.inventory-pagination-actions {
+  margin-top: 18px;
+}
+
+.page-button {
+  border: 0;
+  cursor: pointer;
+}
+
+.page-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.edit-page-panel {
+  margin-top: 24px;
+}
+
+.edit-page-title {
+  font-family: var(--font-geist-mono), "IBM Plex Mono", monospace;
+  font-size: clamp(2rem, 4vw, 3rem);
 }
 
 .panel {
@@ -418,6 +538,7 @@ thead th {
   .hero,
   .content-grid,
   .tables-grid,
+  .inventory-filters,
   .signal-columns,
   .stats-grid {
     grid-template-columns: 1fr;
@@ -439,6 +560,12 @@ thead th {
   .app-shell {
     width: min(100vw - 20px, 1200px);
     padding: 16px 0 32px;
+  }
+
+  .top-nav-wrap {
+    width: min(100vw - 20px, 1200px);
+    top: 10px;
+    padding-top: 10px;
   }
 
   .hero,
