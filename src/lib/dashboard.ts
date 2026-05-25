@@ -9,7 +9,7 @@ export async function getDashboardSnapshot() {
         prisma.inventoryItem.findMany({ orderBy: [{ updatedAt: "desc" }, { id: "desc" }] }),
         prisma.inventoryItem.count(),
         prisma.feedingRule.findMany({ orderBy: [{ code: "asc" }] }),
-        prisma.sensitivityRecord.findMany({ orderBy: [{ recordedOn: "desc" }], take: 5 }),
+        prisma.sensitivityRecord.findMany({ orderBy: [{ recordedOn: "desc" }, { id: "desc" }] }),
       ]);
 
     return {
@@ -18,9 +18,10 @@ export async function getDashboardSnapshot() {
       stats: [
         { label: "庫存食材", value: inventoryCount, caption: "顯示全部庫存筆數" },
         { label: "規則筆數", value: rules.length, caption: "含早餐/晚餐/全日限制" },
-        { label: "試敏紀錄", value: sensitivityRecords.length, caption: "首頁顯示最近 5 筆紀錄" },
+        { label: "試敏紀錄", value: sensitivityRecords.length, caption: "首頁顯示全部試敏紀錄" },
       ],
       inventory,
+      rules,
       sensitivityRecords,
     };
   } catch (error) {
@@ -35,6 +36,7 @@ export async function getDashboardSnapshot() {
         { label: "試敏紀錄", value: 0, caption: "等待 seed" },
       ],
       inventory: [] as InventoryItem[],
+      rules: [] as FeedingRule[],
       sensitivityRecords: [] as SensitivityRecord[],
     };
   }

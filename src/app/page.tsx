@@ -1,5 +1,7 @@
 import { GoogleSheetSyncButton } from "@/app/components/google-sheet-sync-button";
 import { InventoryTable } from "@/app/components/inventory-table";
+import { RulesTable } from "@/app/components/rules-table";
+import { SensitivityTable } from "@/app/components/sensitivity-table";
 import { getDashboardSnapshot } from "@/lib/dashboard";
 
 export const dynamic = "force-dynamic";
@@ -45,6 +47,11 @@ export default async function Home() {
 
       <section className="inventory-section">
         <InventoryTable inventory={snapshot.inventory} />
+      </section>
+
+      <section className="detail-sections-grid">
+        <RulesTable rules={snapshot.rules} />
+        <SensitivityTable records={snapshot.sensitivityRecords} />
       </section>
     </main>
   );

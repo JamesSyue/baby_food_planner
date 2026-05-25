@@ -18,11 +18,29 @@ type InventoryTableProps = {
   inventory: InventoryItem[];
 };
 
+type IngredientTrait = {
+  ingredientName: string;
+  primaryType: string;
+  solubleFiber: string | null;
+  insolubleFiber: string | null;
+  fiberLevel: string | null;
+  easyGas: string | null;
+  forConstipation: string | null;
+  forDiarrhea: string | null;
+  forPhlegm: string | null;
+  sensitivity: string | null;
+  adverseNotes: string | null;
+  nutritionNotes: string | null;
+};
+
 export function InventoryTable({ inventory }: InventoryTableProps) {
   const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [loadingName, setLoadingName] = useState<string | null>(null);
+  const [selectedTrait, setSelectedTrait] = useState<IngredientTrait | null>(null);
+  const [traitErrorMessage, setTraitErrorMessage] = useState<string | null>(null);
 
   const categoryOptions = useMemo(
     () => Array.from(new Set(inventory.map((item) => item.category).filter(Boolean))).sort((left, right) => left.localeCompare(right, "zh-Hant")),
@@ -56,6 +74,28 @@ export function InventoryTable({ inventory }: InventoryTableProps) {
     setPage(1);
   }, [searchTerm, categoryFilter, statusFilter]);
 
+  useEffect(() => {
+    if (!selectedTrait && !traitErrorMessage) {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setSelectedTrait(null);
+        setTraitErrorMessage(null);
+      }
+    }
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [selectedTrait, traitErrorMessage]);
+
   const totalPages = Math.max(1, Math.ceil(filteredInventory.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
 
@@ -63,6 +103,44 @@ export function InventoryTable({ inventory }: InventoryTableProps) {
     const start = (currentPage - 1) * PAGE_SIZE;
     return filteredInventory.slice(start, start + PAGE_SIZE);
   }, [currentPage, filteredInventory]);
+
+  async function handleNameClick(name: string) {
+    setLoadingName(name);
+
+    try {
+      const response = await fetch(`/api/ingredient-traits?name=${encodeURIComponent(name)}`, {
+        cache: "no-store",
+      });
+      const json = (await response.json()) as {
+        ok: boolean;
+        message?: string;
+        trait?: IngredientTrait;
+      };
+
+      if (!response.ok || !json.ok || !json.trait) {
+        setTraitErrorMessage(json.message || `找不到「${name}」的食材特性資料`);
+        setSelectedTrait(null);
+        return;
+      }
+
+      setSelectedTrait(json.trait);
+      setTraitErrorMessage(null);
+    } catch {
+      setTraitErrorMessage(`讀取「${name}」的食材特性時發生錯誤`);
+      setSelectedTrait(null);
+    } finally {
+      setLoadingName(null);
+    }
+  }
+
+  function closeTraitModal() {
+    setSelectedTrait(null);
+    setTraitErrorMessage(null);
+  }
+
+  function renderValue(value: string | null) {
+    return value || "未填寫";
+  }
 
   return (
     <article className="panel inventory-panel">
@@ -120,7 +198,8 @@ export function InventoryTable({ inventory }: InventoryTableProps) {
         <table>
           <thead>
             <tr>
-              <th>食材</th>
+              <th>食材ID</th>
+              <th>食材名稱</th>
               <th>類型</th>
               <th>規格</th>
               <th>庫存</th>
@@ -131,9 +210,16 @@ export function InventoryTable({ inventory }: InventoryTableProps) {
             {pagedInventory.length ? (
               pagedInventory.map((item) => (
                 <tr key={item.id}>
+                  <td>{item.code}</td>
                   <td>
-                    <strong>{item.name}</strong>
-                    <span>{item.code}</span>
+                    <button
+                      type="button"
+                      className="inventory-name-button"
+                      onClick={() => handleNameClick(item.name)}
+                      disabled={loadingName === item.name}
+                    >
+                      {loadingName === item.name ? `讀取中：${item.name}` : item.name}
+                    </button>
                   </td>
                   <td>{item.category}</td>
                   <td>{item.specGrams}g</td>
@@ -143,7 +229,7 @@ export function InventoryTable({ inventory }: InventoryTableProps) {
               ))
             ) : (
               <tr>
-                <td colSpan={5} className="empty-cell">
+                <td colSpan={6} className="empty-cell">
                   目前沒有符合條件的庫存資料
                 </td>
               </tr>
@@ -181,6 +267,106 @@ export function InventoryTable({ inventory }: InventoryTableProps) {
           最後一頁
         </button>
       </div>
+
+      {(selectedTrait || traitErrorMessage) && (
+        <div className="trait-modal-overlay" onClick={closeTraitModal} role="presentation">
+          <div
+            className="trait-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="trait-modal-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="trait-modal-head">
+              <div>
+                <p className="eyebrow">Ingredient Trait</p>
+                <h3 id="trait-modal-title">{selectedTrait ? `${selectedTrait.ingredientName} 的食材特性` : "食材特性"}</h3>
+              </div>
+              <button type="button" className="trait-modal-close" onClick={closeTraitModal}>
+                關閉
+              </button>
+            </div>
+
+            {traitErrorMessage ? (
+              <div className="trait-modal-error">{traitErrorMessage}</div>
+            ) : selectedTrait ? (
+              <div className="trait-modal-body">
+                <section className="trait-group">
+                  <h4>基本資料</h4>
+                  <dl className="trait-grid">
+                    <div>
+                      <dt>食材名稱</dt>
+                      <dd>{selectedTrait.ingredientName}</dd>
+                    </div>
+                    <div>
+                      <dt>主要類型</dt>
+                      <dd>{selectedTrait.primaryType}</dd>
+                    </div>
+                    <div>
+                      <dt>容易脹氣</dt>
+                      <dd>{renderValue(selectedTrait.easyGas)}</dd>
+                    </div>
+                  </dl>
+                </section>
+
+                <section className="trait-group">
+                  <h4>纖維</h4>
+                  <dl className="trait-grid">
+                    <div>
+                      <dt>水溶性纖維</dt>
+                      <dd>{renderValue(selectedTrait.solubleFiber)}</dd>
+                    </div>
+                    <div>
+                      <dt>非水溶性纖維</dt>
+                      <dd>{renderValue(selectedTrait.insolubleFiber)}</dd>
+                    </div>
+                    <div>
+                      <dt>纖維</dt>
+                      <dd>{renderValue(selectedTrait.fiberLevel)}</dd>
+                    </div>
+                  </dl>
+                </section>
+
+                <section className="trait-group">
+                  <h4>試敏與適用情境</h4>
+                  <dl className="trait-grid">
+                    <div>
+                      <dt>試敏狀態</dt>
+                      <dd>{renderValue(selectedTrait.sensitivity)}</dd>
+                    </div>
+                    <div>
+                      <dt>適合山羊便/硬便</dt>
+                      <dd>{renderValue(selectedTrait.forConstipation)}</dd>
+                    </div>
+                    <div>
+                      <dt>腹瀉時建議</dt>
+                      <dd>{renderValue(selectedTrait.forDiarrhea)}</dd>
+                    </div>
+                    <div>
+                      <dt>適合感冒有痰</dt>
+                      <dd>{renderValue(selectedTrait.forPhlegm)}</dd>
+                    </div>
+                  </dl>
+                </section>
+
+                <section className="trait-group">
+                  <h4>備註</h4>
+                  <dl className="trait-stack">
+                    <div>
+                      <dt>過敏/不適紀錄</dt>
+                      <dd>{renderValue(selectedTrait.adverseNotes)}</dd>
+                    </div>
+                    <div>
+                      <dt>營養備註</dt>
+                      <dd>{renderValue(selectedTrait.nutritionNotes)}</dd>
+                    </div>
+                  </dl>
+                </section>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
     </article>
   );
 }
