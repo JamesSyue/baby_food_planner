@@ -1,5 +1,7 @@
 import { getDashboardSnapshot } from "@/lib/dashboard";
 
+import { GoogleSheetSyncButton } from "@/app/components/google-sheet-sync-button";
+
 export const dynamic = "force-dynamic";
 
 const dateFormatter = new Intl.DateTimeFormat("zh-TW", {
@@ -33,6 +35,7 @@ export default async function Home() {
               查看菜單建議 API
             </a>
           </div>
+          <GoogleSheetSyncButton />
         </div>
       </section>
 

@@ -137,6 +137,63 @@ select {
   margin-top: 8px;
 }
 
+.sync-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.sync-button {
+  width: fit-content;
+  border: 0;
+  cursor: pointer;
+}
+
+.sync-button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.sync-hint {
+  color: rgba(249, 244, 238, 0.82);
+  font-size: 0.92rem;
+}
+
+.sync-result {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sync-result.success {
+  background: rgba(134, 212, 143, 0.14);
+}
+
+.sync-result.error {
+  background: rgba(203, 124, 93, 0.16);
+}
+
+.sync-summary-list {
+  display: grid;
+  gap: 10px;
+}
+
+.sync-summary-card {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.sync-summary-card p {
+  margin-top: 6px;
+  color: rgba(249, 244, 238, 0.84);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
 .button-primary,
 .button-secondary {
   display: inline-flex;
