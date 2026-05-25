@@ -1,17 +1,33 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
 const menuItems = [
   { href: "/", label: "首頁" },
-  { href: "/inventory/edit", label: "編輯庫存頁" },
+  { href: "/inventory/edit", label: "編輯食材庫存" },
 ];
 
-export function TopNav() {
+type TopNavProps = {
+  loggedIn: boolean;
+};
+
+export function TopNav({ loggedIn }: TopNavProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+
+  async function handleLogout() {
+    await fetch("/api/login", { method: "DELETE" });
+    setOpen(false);
+    router.replace("/login");
+    router.refresh();
+  }
+
+  if (!loggedIn) {
+    return null;
+  }
 
   return (
     <div className="top-nav-wrap">
@@ -30,6 +46,9 @@ export function TopNav() {
               {item.label}
             </Link>
           ))}
+          <button type="button" className="menu-link menu-logout-button" onClick={handleLogout}>
+            登出
+          </button>
         </nav>
       ) : null}
     </div>

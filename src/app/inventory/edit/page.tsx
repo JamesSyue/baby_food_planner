@@ -1,9 +1,11 @@
 import { InventoryEditForm } from "@/app/components/inventory-edit-form";
+import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
 export default async function InventoryEditPage() {
+  await requireAuth();
   const inventory = await prisma.inventoryItem.findMany({
     orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
   });

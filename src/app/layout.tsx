@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { TopNav } from "@/app/components/top-nav";
+import { getLoggedInAccount } from "@/lib/auth";
 
 import "./globals.css";
 
@@ -14,10 +15,24 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const accountPromise = getLoggedInAccount();
+
+  return <RootLayoutContent accountPromise={accountPromise}>{children}</RootLayoutContent>;
+}
+
+async function RootLayoutContent({
+  children,
+  accountPromise,
+}: Readonly<{
+  children: React.ReactNode;
+  accountPromise: Promise<string | null>;
+}>) {
+  const account = await accountPromise;
+
   return (
     <html lang="zh-Hant">
       <body>
-        <TopNav />
+        <TopNav loggedIn={Boolean(account)} />
         {children}
       </body>
     </html>

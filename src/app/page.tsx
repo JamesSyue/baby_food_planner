@@ -2,11 +2,13 @@ import { GoogleSheetSyncButton } from "@/app/components/google-sheet-sync-button
 import { InventoryTable } from "@/app/components/inventory-table";
 import { RulesTable } from "@/app/components/rules-table";
 import { SensitivityTable } from "@/app/components/sensitivity-table";
+import { requireAuth } from "@/lib/auth";
 import { getDashboardSnapshot } from "@/lib/dashboard";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
+  await requireAuth();
   const snapshot = await getDashboardSnapshot();
 
   return (

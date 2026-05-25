@@ -11,6 +11,14 @@ datasource db {
   provider = "mysql"
 }
 
+model Account {
+  id       Int    @id @default(autoincrement())
+  account  String @unique @db.VarChar(191)
+  password String @db.VarChar(255)
+
+  @@map("Accounts")
+}
+
 model InventoryItem {
   id                   Int      @id @default(autoincrement())
   code                 String   @unique @db.VarChar(32)

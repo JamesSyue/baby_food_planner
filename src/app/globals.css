@@ -100,6 +100,13 @@ select {
   color: rgba(33, 50, 41, 0.82);
 }
 
+.menu-logout-button {
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
 .menu-link.active,
 .menu-link:hover {
   background: var(--sage-soft);
@@ -657,6 +664,26 @@ table span,
 
 .edit-page-hint {
   color: rgba(33, 50, 41, 0.72);
+  line-height: 1.6;
+}
+
+.login-panel {
+  width: min(560px, 100%);
+  margin: 48px auto 0;
+}
+
+.login-form {
+  display: grid;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.login-submit-button {
+  width: 100%;
+}
+
+.login-error {
+  color: var(--terracotta);
   line-height: 1.6;
 }
 
