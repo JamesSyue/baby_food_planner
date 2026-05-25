@@ -3,7 +3,7 @@ import { createSign } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 
 type SheetSyncSummary = {
-  key: "inventory" | "traits" | "rules";
+  key: "inventory" | "traits" | "rules" | "sensitivity";
   label: string;
   count: number;
   items: string[];
@@ -87,10 +87,10 @@ function extractSpreadsheetId(value: string) {
   return match ? match[1] : value;
 }
 
-async function fetchSheetRows(spreadsheetIdOrUrl: string, accessToken: string) {
+async function fetchSheetRows(spreadsheetIdOrUrl: string, range: string, accessToken: string) {
   const spreadsheetId = extractSpreadsheetId(spreadsheetIdOrUrl);
   const response = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/A:ZZ`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}`,
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -234,19 +234,82 @@ function mapRuleRows(rows: Record<string, string>[]) {
   );
 }
 
+function parseBoolean(value: string) {
+  const normalized = String(value || "").trim();
+  return ["是", "true", "TRUE", "1", "已完成"].includes(normalized);
+}
+
+function mapSensitivityRows(rows: Record<string, string>[]) {
+  return rows
+    .map((row) => {
+      const recordedOn = parseDate(row["日期"]);
+      const ingredientName = row["食材名稱"]?.trim();
+      const grams = parseNumber(row["克數(g)"]);
+      const daySequence = parseNumber(row["第幾天"]);
+
+      if (!recordedOn || !ingredientName || grams === null || daySequence === null) {
+        return null;
+      }
+
+      return {
+        recordedOn,
+        ingredientName,
+        grams,
+        daySequence,
+        result: row["結果"]?.trim() || null,
+        symptomNotes: row["症狀/備註"]?.trim() || null,
+        isCompleted: parseBoolean(row["是否已完成試敏"]),
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => Boolean(row));
+}
+
+function mapDailyRows(rows: Record<string, string>[]) {
+  return rows
+    .map((row) => {
+      const recordedOn = parseDate(row["日期"]);
+      if (!recordedOn) return null;
+
+      return {
+        recordedOn,
+        stoolCondition: row["便便狀況"]?.trim() || null,
+        fever: row["發燒"]?.trim() || null,
+        coughPhlegm: row["咳嗽/痰"]?.trim() || null,
+        appetite: row["食慾"]?.trim() || null,
+        waterMilkStatus: row["喝水/奶量狀況"]?.trim() || null,
+        notes: row["特殊備註"]?.trim() || null,
+        pairingDirection: row["今日搭配方向"]?.trim() || null,
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => Boolean(row));
+}
+
 export async function syncGoogleSheetsToDatabase() {
   const accessToken = await fetchGoogleAccessToken();
-  const [inventoryRows, traitRows, ruleRows] = await Promise.all([
-    fetchSheetRows(getRequiredEnv("GOOGLE_SHEET_INVENTORY_ID"), accessToken),
-    fetchSheetRows(getRequiredEnv("GOOGLE_SHEET_TRAITS_ID"), accessToken),
-    fetchSheetRows(getRequiredEnv("GOOGLE_SHEET_RULES_ID"), accessToken),
+  const spreadsheetId = getRequiredEnv("GOOGLE_SHEETS_SPREADSHEET_ID");
+  const inventorySheetName = getRequiredEnv("GOOGLE_SHEET_TAB_INVENTORY");
+  const traitsSheetName = getRequiredEnv("GOOGLE_SHEET_TAB_TRAITS");
+  const rulesSheetName = getRequiredEnv("GOOGLE_SHEET_TAB_RULES");
+  const sensitivitySheetName = getRequiredEnv("GOOGLE_SHEET_TAB_SENSITIVITY");
+
+  const [inventoryRows, traitRows, ruleRows, sensitivityRows] = await Promise.all([
+    fetchSheetRows(spreadsheetId, `${inventorySheetName}!A:ZZ`, accessToken),
+    fetchSheetRows(spreadsheetId, `${traitsSheetName}!A:ZZ`, accessToken),
+    fetchSheetRows(spreadsheetId, `${rulesSheetName}!A:ZZ`, accessToken),
+    fetchSheetRows(spreadsheetId, `${sensitivitySheetName}!A:ZZ`, accessToken),
   ]);
 
   const inventory = mapInventoryRows(rowsToObjects(inventoryRows));
   const traits = mapTraitRows(rowsToObjects(traitRows));
   const rules = mapRuleRows(rowsToObjects(ruleRows));
+  const sensitivity = mapSensitivityRows(rowsToObjects(sensitivityRows));
 
   await prisma.$transaction(async (transaction) => {
+    await transaction.menuPlanItem.deleteMany();
+    await transaction.menuPlan.deleteMany();
+    await transaction.inventoryMovement.deleteMany();
+    await transaction.dailyCondition.deleteMany();
+    await transaction.sensitivityRecord.deleteMany();
     await transaction.inventoryItem.deleteMany();
     await transaction.ingredientTrait.deleteMany();
     await transaction.feedingRule.deleteMany();
@@ -259,6 +322,9 @@ export async function syncGoogleSheetsToDatabase() {
     }
     if (rules.length) {
       await transaction.feedingRule.createMany({ data: rules });
+    }
+    if (sensitivity.length) {
+      await transaction.sensitivityRecord.createMany({ data: sensitivity });
     }
   });
 
@@ -280,6 +346,12 @@ export async function syncGoogleSheetsToDatabase() {
       label: "副食品規則",
       count: rules.length,
       items: rules.slice(0, 8).map((item) => `${item.code} ${item.item}`),
+    },
+    {
+      key: "sensitivity",
+      label: "試敏紀錄",
+      count: sensitivity.length,
+      items: sensitivity.slice(0, 8).map((item) => `${item.ingredientName} 第${item.daySequence}天`),
     },
   ];
 
