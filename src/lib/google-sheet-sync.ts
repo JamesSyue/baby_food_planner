@@ -26,6 +26,20 @@ const INVENTORY_SHEET_HEADERS = [
   "使用期限",
   "備註",
 ] as const;
+const TRAITS_SHEET_HEADERS = [
+  "食材名稱",
+  "主要類型",
+  "水溶性纖維",
+  "非水溶性纖維",
+  "纖維",
+  "容易脹氣",
+  "適合山羊便/硬便",
+  "腹瀉時建議",
+  "適合感冒有痰",
+  "試敏狀態",
+  "過敏/不適紀錄",
+  "營養備註",
+] as const;
 
 type InventoryWriteItem = {
   code: string;
@@ -39,6 +53,21 @@ type InventoryWriteItem = {
   storageMethod: string | null;
   expiresAt: string | Date | null;
   notes: string | null;
+};
+
+type IngredientTraitWriteItem = {
+  ingredientName: string;
+  primaryType: string;
+  solubleFiber: string | null;
+  insolubleFiber: string | null;
+  fiberLevel: string | null;
+  easyGas: string | null;
+  forConstipation: string | null;
+  forDiarrhea: string | null;
+  forPhlegm: string | null;
+  sensitivity: string | null;
+  adverseNotes: string | null;
+  nutritionNotes: string | null;
 };
 
 function getRequiredEnv(name: string) {
@@ -445,6 +474,77 @@ export async function replaceInventoryInDatabaseAndSheet(items: InventoryWriteIt
   };
 }
 
+function normalizeIngredientTraitWriteItems(items: IngredientTraitWriteItem[]) {
+  return dedupeByKey(
+    items.map((item) => {
+      const ingredientName = String(item.ingredientName || "").trim();
+      const primaryType = String(item.primaryType || "").trim();
+
+      if (!ingredientName || !primaryType) {
+        throw new Error("食材名稱與主要類型不可空白。");
+      }
+
+      return {
+        ingredientName,
+        primaryType,
+        solubleFiber: String(item.solubleFiber || "").trim() || null,
+        insolubleFiber: String(item.insolubleFiber || "").trim() || null,
+        fiberLevel: String(item.fiberLevel || "").trim() || null,
+        easyGas: String(item.easyGas || "").trim() || null,
+        forConstipation: String(item.forConstipation || "").trim() || null,
+        forDiarrhea: String(item.forDiarrhea || "").trim() || null,
+        forPhlegm: String(item.forPhlegm || "").trim() || null,
+        sensitivity: String(item.sensitivity || "").trim() || null,
+        adverseNotes: String(item.adverseNotes || "").trim() || null,
+        nutritionNotes: String(item.nutritionNotes || "").trim() || null,
+      };
+    }),
+    (item) => item.ingredientName,
+  );
+}
+
+export async function replaceIngredientTraitsInDatabaseAndSheet(items: IngredientTraitWriteItem[]) {
+  const traits = normalizeIngredientTraitWriteItems(items);
+  const accessToken = await fetchGoogleAccessToken();
+  const spreadsheetId = getRequiredEnv("GOOGLE_SHEETS_SPREADSHEET_ID");
+  const traitsSheetName = getRequiredEnv("GOOGLE_SHEET_TAB_TRAITS");
+
+  await prisma.$transaction(async (transaction) => {
+    await transaction.ingredientTrait.deleteMany();
+
+    if (traits.length) {
+      await transaction.ingredientTrait.createMany({ data: traits });
+    }
+  });
+
+  const values = [
+    [...TRAITS_SHEET_HEADERS],
+    ...traits.map((item) => [
+      item.ingredientName,
+      item.primaryType,
+      item.solubleFiber || "",
+      item.insolubleFiber || "",
+      item.fiberLevel || "",
+      item.easyGas || "",
+      item.forConstipation || "",
+      item.forDiarrhea || "",
+      item.forPhlegm || "",
+      item.sensitivity || "",
+      item.adverseNotes || "",
+      item.nutritionNotes || "",
+    ]),
+  ];
+
+  await clearSheetRange(spreadsheetId, `${traitsSheetName}!A:ZZ`, accessToken);
+  await updateSheetRows(spreadsheetId, `${traitsSheetName}!A1`, values, accessToken);
+
+  return {
+    updatedAt: new Date().toISOString(),
+    count: traits.length,
+    items: traits.slice(0, 12).map((item) => item.ingredientName),
+  };
+}
+
 export async function syncGoogleSheetsToDatabase() {
   const accessToken = await fetchGoogleAccessToken();
   const spreadsheetId = getRequiredEnv("GOOGLE_SHEETS_SPREADSHEET_ID");
@@ -522,4 +622,4 @@ export async function syncGoogleSheetsToDatabase() {
   };
 }
 
-export type { InventoryWriteItem, SheetSyncSummary };
+export type { IngredientTraitWriteItem, InventoryWriteItem, SheetSyncSummary };

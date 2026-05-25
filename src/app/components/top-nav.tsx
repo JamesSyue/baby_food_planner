@@ -7,6 +7,7 @@ import { useState } from "react";
 const menuItems = [
   { href: "/", label: "首頁" },
   { href: "/inventory/edit", label: "編輯食材庫存" },
+  { href: "/ingredient-traits/edit", label: "編輯食材特性" },
 ];
 
 type TopNavProps = {
