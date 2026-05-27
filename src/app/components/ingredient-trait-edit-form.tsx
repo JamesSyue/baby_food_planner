@@ -37,18 +37,13 @@ type TraitRequiredField = "ingredientName" | "primaryType";
 export function IngredientTraitEditForm({ traits }: IngredientTraitEditFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [mounted, setMounted] = useState(false);
   const [rows, setRows] = useState(traits);
   const [nextRowId, setNextRowId] = useState(-1);
   const [searchTerm, setSearchTerm] = useState("");
   const [primaryTypeFilter, setPrimaryTypeFilter] = useState("all");
   const [isSaving, setIsSaving] = useState(false);
   const [result, setResult] = useState<SaveResponse | null>(null);
-
-  useEffect(() => {
-    setMounted(true);
-    return () => setMounted(false);
-  }, []);
+  const canUsePortal = typeof document !== "undefined";
 
   useEffect(() => {
     if (!result) {
@@ -198,7 +193,11 @@ export function IngredientTraitEditForm({ traits }: IngredientTraitEditFormProps
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          items: rows.map(({ id, ...item }) => item),
+          items: rows.map((item) => {
+            const { id: omittedId, ...rest } = item;
+            void omittedId;
+            return rest;
+          }),
         }),
       });
 
@@ -338,7 +337,7 @@ export function IngredientTraitEditForm({ traits }: IngredientTraitEditFormProps
         {hasValidationErrors ? <p className="edit-page-validation-note">必填欄位：食材名稱、主要類型。</p> : null}
       </div>
 
-      {mounted && result
+      {canUsePortal && result
         ? createPortal(
             <div className="app-alert-overlay" onClick={() => setResult(null)} role="presentation">
               <div

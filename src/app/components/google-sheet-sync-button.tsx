@@ -23,12 +23,7 @@ export function GoogleSheetSyncButton() {
   const [isPending, startTransition] = useTransition();
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<SyncResponse | null>(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    return () => setMounted(false);
-  }, []);
+  const canUsePortal = typeof document !== "undefined";
 
   useEffect(() => {
     if (!result) {
@@ -105,7 +100,7 @@ export function GoogleSheetSyncButton() {
         {isLoading || isPending ? <p className="sync-hint">同步進行中，請稍候。</p> : null}
       </div>
 
-      {mounted && result
+      {canUsePortal && result
         ? createPortal(
             <div className="app-alert-overlay" onClick={() => setResult(null)} role="presentation">
               <div

@@ -32,9 +32,18 @@ export function TopNav({ loggedIn }: TopNavProps) {
 
   return (
     <div className="top-nav-wrap">
-      <button type="button" className="menu-toggle-button" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
-        Menu
-      </button>
+      <div className="top-nav-bar">
+        <div className="top-nav-brand">
+          <span className="top-nav-brand-mark" aria-hidden="true" />
+          <div>
+            <p>Baby Food Planner</p>
+            <span>Household dashboard</span>
+          </div>
+        </div>
+        <button type="button" className="menu-toggle-button" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
+          Workspace
+        </button>
+      </div>
       {open ? (
         <nav className="menu-panel">
           {menuItems.map((item) => (

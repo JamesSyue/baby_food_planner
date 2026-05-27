@@ -42,7 +42,7 @@ export function InventoryTable({ inventory }: InventoryTableProps) {
   const [loadingName, setLoadingName] = useState<string | null>(null);
   const [selectedTrait, setSelectedTrait] = useState<IngredientTrait | null>(null);
   const [traitErrorMessage, setTraitErrorMessage] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
+  const canUsePortal = typeof document !== "undefined";
 
   const categoryOptions = useMemo(
     () => Array.from(new Set(inventory.map((item) => item.category).filter(Boolean))).sort((left, right) => left.localeCompare(right, "zh-Hant")),
@@ -71,15 +71,6 @@ export function InventoryTable({ inventory }: InventoryTableProps) {
       return matchesKeyword && matchesCategory && matchesStatus;
     });
   }, [categoryFilter, inventory, searchTerm, statusFilter]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [searchTerm, categoryFilter, statusFilter]);
-
-  useEffect(() => {
-    setMounted(true);
-    return () => setMounted(false);
-  }, []);
 
   useEffect(() => {
     if (!selectedTrait && !traitErrorMessage) {
@@ -171,14 +162,23 @@ export function InventoryTable({ inventory }: InventoryTableProps) {
           <input
             type="search"
             value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
+            onChange={(event) => {
+              setSearchTerm(event.target.value);
+              setPage(1);
+            }}
             placeholder="搜尋食材、代碼、類型或狀態"
           />
         </label>
 
         <label className="inventory-filter-field">
           <span>類型篩選</span>
-          <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+          <select
+            value={categoryFilter}
+            onChange={(event) => {
+              setCategoryFilter(event.target.value);
+              setPage(1);
+            }}
+          >
             <option value="all">全部類型</option>
             {categoryOptions.map((option) => (
               <option key={option} value={option}>
@@ -190,7 +190,13 @@ export function InventoryTable({ inventory }: InventoryTableProps) {
 
         <label className="inventory-filter-field">
           <span>狀態篩選</span>
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+          <select
+            value={statusFilter}
+            onChange={(event) => {
+              setStatusFilter(event.target.value);
+              setPage(1);
+            }}
+          >
             <option value="all">全部狀態</option>
             {statusOptions.map((option) => (
               <option key={option} value={option}>
@@ -275,7 +281,7 @@ export function InventoryTable({ inventory }: InventoryTableProps) {
         </button>
       </div>
 
-      {mounted && (selectedTrait || traitErrorMessage)
+      {canUsePortal && (selectedTrait || traitErrorMessage)
         ? createPortal(
             <div className="trait-modal-overlay" onClick={closeTraitModal} role="presentation">
               <div

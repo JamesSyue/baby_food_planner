@@ -36,7 +36,6 @@ type InventoryRequiredField = "code" | "name" | "category";
 export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [mounted, setMounted] = useState(false);
   const [rows, setRows] = useState(inventory);
   const [nextRowId, setNextRowId] = useState(-1);
   const [searchTerm, setSearchTerm] = useState("");
@@ -44,11 +43,7 @@ export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [isSaving, setIsSaving] = useState(false);
   const [result, setResult] = useState<SaveResponse | null>(null);
-
-  useEffect(() => {
-    setMounted(true);
-    return () => setMounted(false);
-  }, []);
+  const canUsePortal = typeof document !== "undefined";
 
   useEffect(() => {
     if (!result) {
@@ -216,7 +211,11 @@ export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          items: rows.map(({ id, ...item }) => item),
+          items: rows.map((item) => {
+            const { id: omittedId, ...rest } = item;
+            void omittedId;
+            return rest;
+          }),
         }),
       });
 
@@ -392,7 +391,7 @@ export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
         {hasValidationErrors ? <p className="edit-page-validation-note">必填欄位：食材ID、食材名稱、類型。</p> : null}
       </div>
 
-      {mounted && result
+      {canUsePortal && result
         ? createPortal(
             <div className="app-alert-overlay" onClick={() => setResult(null)} role="presentation">
               <div

@@ -366,26 +366,6 @@ function mapSensitivityRows(rows: Record<string, string>[]) {
     .filter((row): row is NonNullable<typeof row> => Boolean(row));
 }
 
-function mapDailyRows(rows: Record<string, string>[]) {
-  return rows
-    .map((row) => {
-      const recordedOn = parseDate(row["日期"]);
-      if (!recordedOn) return null;
-
-      return {
-        recordedOn,
-        stoolCondition: row["便便狀況"]?.trim() || null,
-        fever: row["發燒"]?.trim() || null,
-        coughPhlegm: row["咳嗽/痰"]?.trim() || null,
-        appetite: row["食慾"]?.trim() || null,
-        waterMilkStatus: row["喝水/奶量狀況"]?.trim() || null,
-        notes: row["特殊備註"]?.trim() || null,
-        pairingDirection: row["今日搭配方向"]?.trim() || null,
-      };
-    })
-    .filter((row): row is NonNullable<typeof row> => Boolean(row));
-}
-
 function normalizeInventoryWriteItems(items: InventoryWriteItem[]) {
   return dedupeByKey(
     items.map((item) => {
