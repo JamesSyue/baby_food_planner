@@ -19,6 +19,21 @@ export type MenuRecommendationResult = {
   notes: string[];
 };
 
+export type IngredientTraitSuggestion = {
+  ingredientName: string;
+  primaryType: string;
+  solubleFiber: string | null;
+  insolubleFiber: string | null;
+  fiberLevel: string | null;
+  easyGas: string | null;
+  forConstipation: string | null;
+  forDiarrhea: string | null;
+  forPhlegm: string | null;
+  sensitivity: string | null;
+  adverseNotes: string | null;
+  nutritionNotes: string | null;
+};
+
 type GeminiCandidate = {
   content?: {
     parts?: Array<{
@@ -199,6 +214,97 @@ function sanitizeMenuRecommendationResult(input: unknown): MenuRecommendationRes
   };
 }
 
+function normalizeOptionalTraitText(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function sanitizeIngredientTraitSuggestion(input: unknown, ingredientName: string): IngredientTraitSuggestion {
+  if (!input || typeof input !== "object") {
+    throw new Error("AI 沒有回傳有效的食材特性資料");
+  }
+
+  const source = input as Partial<Record<keyof IngredientTraitSuggestion, unknown>>;
+  const normalizedIngredientName = (typeof source.ingredientName === "string" && source.ingredientName.trim() ? source.ingredientName.trim() : ingredientName).trim();
+  const primaryType = typeof source.primaryType === "string" && source.primaryType.trim() ? source.primaryType.trim() : "";
+
+  if (!normalizedIngredientName) {
+    throw new Error("AI 回傳的食材名稱為空白");
+  }
+
+  if (!primaryType) {
+    throw new Error("AI 回傳的主要類型為空白");
+  }
+
+  return {
+    ingredientName: normalizedIngredientName,
+    primaryType,
+    solubleFiber: normalizeOptionalTraitText(source.solubleFiber),
+    insolubleFiber: normalizeOptionalTraitText(source.insolubleFiber),
+    fiberLevel: normalizeOptionalTraitText(source.fiberLevel),
+    easyGas: normalizeOptionalTraitText(source.easyGas),
+    forConstipation: normalizeOptionalTraitText(source.forConstipation),
+    forDiarrhea: normalizeOptionalTraitText(source.forDiarrhea),
+    forPhlegm: normalizeOptionalTraitText(source.forPhlegm),
+    sensitivity: normalizeOptionalTraitText(source.sensitivity),
+    adverseNotes: normalizeOptionalTraitText(source.adverseNotes),
+    nutritionNotes: normalizeOptionalTraitText(source.nutritionNotes),
+  };
+}
+
+function buildIngredientTraitPrompt(ingredientName: string) {
+  return [
+    "你是副食品食材特性整理助手。",
+    `請查詢「${ingredientName}」的食材特性。`,
+    "請依照以下欄位輸出 JSON，不要加入 markdown、說明文字或程式碼區塊。",
+    "欄位順序與 key：ingredientName, primaryType, solubleFiber, insolubleFiber, fiberLevel, easyGas, forConstipation, forDiarrhea, forPhlegm, sensitivity, adverseNotes, nutritionNotes。",
+    "欄位對應中文：食材名稱、主要類型、水溶性纖維、非水溶性纖維、纖維、容易脹氣、適合山羊便/硬便、腹瀉時建議、適合感冒有痰、試敏狀態、過敏/不適紀錄、營養備註。",
+    "若資料不明確，請填 null，不要自行捏造過度確定的內容。",
+    "JSON 範例：",
+    '{"ingredientName":"南瓜","primaryType":"蔬菜","solubleFiber":"中","insolubleFiber":"低","fiberLevel":"中","easyGas":"低","forConstipation":"適合","forDiarrhea":"可少量","forPhlegm":"普通","sensitivity":"可先少量試敏","adverseNotes":null,"nutritionNotes":"含beta-胡蘿蔔素"}',
+  ].join("\n\n");
+}
+
+async function generateGeminiJson(prompt: string) {
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("尚未設定 GEMINI_API_KEY");
+  }
+
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: prompt }],
+        },
+      ],
+      generationConfig: {
+        responseMimeType: "application/json",
+      },
+    }),
+    cache: "no-store",
+  });
+
+  const responseJson = (await response.json()) as GeminiResponse & { error?: { message?: string } };
+
+  if (!response.ok) {
+    throw new Error(responseJson.error?.message || "Gemini API 呼叫失敗");
+  }
+
+  const text = responseJson.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("") || "";
+
+  if (!text.trim()) {
+    throw new Error("Gemini 沒有回傳內容");
+  }
+
+  return JSON.parse(extractJsonObject(text)) as unknown;
+}
+
 export async function collectMenuContext() {
   const [inventory, rules, traits, sensitivityRecords] = await prisma.$transaction([
     prisma.inventoryItem.findMany({ orderBy: [{ category: "asc" }, { name: "asc" }] }),
@@ -233,12 +339,6 @@ export async function collectMenuContext() {
 }
 
 export async function getMenuRecommendation(userPrompt: string) {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey) {
-    throw new Error("尚未設定 GEMINI_API_KEY");
-  }
-
   const trimmedPrompt = userPrompt.trim();
 
   if (!trimmedPrompt) {
@@ -247,38 +347,19 @@ export async function getMenuRecommendation(userPrompt: string) {
 
   const context = await collectMenuContext();
   const prompt = buildMenuPrompt(trimmedPrompt, context);
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: prompt }],
-        },
-      ],
-      generationConfig: {
-        responseMimeType: "application/json",
-      },
-    }),
-    cache: "no-store",
-  });
-
-  const responseJson = (await response.json()) as GeminiResponse & { error?: { message?: string } };
-
-  if (!response.ok) {
-    throw new Error(responseJson.error?.message || "Gemini API 呼叫失敗");
-  }
-
-  const text = responseJson.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("") || "";
-
-  if (!text.trim()) {
-    throw new Error("Gemini 沒有回傳內容");
-  }
-
-  const parsed = JSON.parse(extractJsonObject(text)) as unknown;
+  const parsed = await generateGeminiJson(prompt);
 
   return sanitizeMenuRecommendationResult(parsed);
+}
+
+export async function getIngredientTraitSuggestion(ingredientName: string) {
+  const trimmedName = ingredientName.trim();
+
+  if (!trimmedName) {
+    throw new Error("請先輸入食材名稱");
+  }
+
+  const parsed = await generateGeminiJson(buildIngredientTraitPrompt(trimmedName));
+
+  return sanitizeIngredientTraitSuggestion(parsed, trimmedName);
 }

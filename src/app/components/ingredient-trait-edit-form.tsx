@@ -20,6 +20,12 @@ type IngredientTraitEditItem = {
   nutritionNotes: string | null;
 };
 
+type IngredientTraitAiResponse = {
+  ok: boolean;
+  message?: string;
+  trait?: Omit<IngredientTraitEditItem, "id">;
+};
+
 type SaveResponse = {
   ok: boolean;
   message?: string;
@@ -41,18 +47,24 @@ export function IngredientTraitEditForm({ traits }: IngredientTraitEditFormProps
   const [nextRowId, setNextRowId] = useState(-1);
   const [searchTerm, setSearchTerm] = useState("");
   const [primaryTypeFilter, setPrimaryTypeFilter] = useState("all");
+  const [aiIngredientName, setAiIngredientName] = useState("");
+  const [aiPreview, setAiPreview] = useState<IngredientTraitEditItem | null>(null);
+  const [aiErrorMessage, setAiErrorMessage] = useState<string | null>(null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isAiSaving, setIsAiSaving] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [result, setResult] = useState<SaveResponse | null>(null);
   const canUsePortal = typeof document !== "undefined";
 
   useEffect(() => {
-    if (!result) {
+    if (!result && !aiPreview) {
       return;
     }
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setResult(null);
+        setAiPreview(null);
       }
     }
 
@@ -64,7 +76,7 @@ export function IngredientTraitEditForm({ traits }: IngredientTraitEditFormProps
       document.body.style.overflow = originalOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [result]);
+  }, [aiPreview, result]);
 
   const primaryTypeOptions = useMemo(
     () => Array.from(new Set(rows.map((item) => item.primaryType).filter(Boolean))).sort((left, right) => left.localeCompare(right, "zh-Hant")),
@@ -177,6 +189,111 @@ export function IngredientTraitEditForm({ traits }: IngredientTraitEditFormProps
     return validationErrors[id]?.[field] || null;
   }
 
+  async function syncRows(nextRows: IngredientTraitEditItem[], successMessage?: string) {
+    const response = await fetch("/api/ingredient-traits-sync", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        items: nextRows.map((item) => {
+          const { id: omittedId, ...rest } = item;
+          void omittedId;
+          return rest;
+        }),
+      }),
+    });
+
+    const json = (await response.json()) as SaveResponse;
+
+    if (!response.ok || !json.ok) {
+      throw new Error(json.message || "食材特性儲存失敗");
+    }
+
+    setRows(nextRows);
+    setResult({
+      ...json,
+      message: successMessage || json.message,
+    });
+
+    startTransition(() => {
+      router.refresh();
+    });
+  }
+
+  async function handleAiSubmit() {
+    const ingredientName = aiIngredientName.trim();
+
+    if (!ingredientName) {
+      setAiErrorMessage("請先輸入食材名稱");
+      return;
+    }
+
+    setIsAiLoading(true);
+    setAiErrorMessage(null);
+
+    try {
+      const response = await fetch("/api/ingredient-trait-ai", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ ingredientName }),
+      });
+
+      const json = (await response.json()) as IngredientTraitAiResponse;
+
+      if (!response.ok || !json.ok || !json.trait) {
+        setAiPreview(null);
+        setAiErrorMessage(json.message || "AI 食材特性查詢失敗");
+        return;
+      }
+
+      const existingRow = rows.find((item) => item.ingredientName.trim().toLowerCase() === json.trait?.ingredientName.trim().toLowerCase());
+      setAiPreview({
+        id: existingRow?.id ?? nextRowId,
+        ...json.trait,
+      });
+    } catch {
+      setAiPreview(null);
+      setAiErrorMessage("AI 食材特性查詢失敗，請稍後再試");
+    } finally {
+      setIsAiLoading(false);
+    }
+  }
+
+  async function handleAiConfirmSave() {
+    if (!aiPreview) {
+      return;
+    }
+
+    setIsAiSaving(true);
+
+    try {
+      const existingIndex = rows.findIndex((item) => item.ingredientName.trim().toLowerCase() === aiPreview.ingredientName.trim().toLowerCase());
+      const nextRows = [...rows];
+
+      if (existingIndex >= 0) {
+        nextRows[existingIndex] = { ...aiPreview, id: nextRows[existingIndex].id };
+      } else {
+        nextRows.unshift(aiPreview);
+        setNextRowId((current) => current - 1);
+      }
+
+      await syncRows(nextRows, `食材特性已由 AI 建立並儲存：${aiPreview.ingredientName}`);
+      setAiPreview(null);
+      setAiIngredientName("");
+      setAiErrorMessage(null);
+    } catch (error) {
+      setResult({
+        ok: false,
+        message: error instanceof Error ? error.message : "AI 食材特性儲存失敗。",
+      });
+    } finally {
+      setIsAiSaving(false);
+    }
+  }
+
   async function handleSave() {
     if (hasValidationErrors) {
       setResult({ ok: false, message: "請先修正必填欄位錯誤後再送出。" });
@@ -187,28 +304,7 @@ export function IngredientTraitEditForm({ traits }: IngredientTraitEditFormProps
     setResult(null);
 
     try {
-      const response = await fetch("/api/ingredient-traits-sync", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          items: rows.map((item) => {
-            const { id: omittedId, ...rest } = item;
-            void omittedId;
-            return rest;
-          }),
-        }),
-      });
-
-      const json = (await response.json()) as SaveResponse;
-      setResult(json);
-
-      if (response.ok && json.ok) {
-        startTransition(() => {
-          router.refresh();
-        });
-      }
+      await syncRows(rows);
     } catch (error) {
       setResult({
         ok: false,
@@ -252,6 +348,34 @@ export function IngredientTraitEditForm({ traits }: IngredientTraitEditFormProps
         </label>
       </div>
 
+      <section className="trait-ai-panel">
+        <div className="trait-ai-panel-head">
+          <div>
+            <p className="eyebrow">AI Trait Builder</p>
+            <h2>用AI新增食材特性</h2>
+          </div>
+          <p className="trait-ai-panel-copy">輸入食材名稱後，系統會用 AI 依照特性欄位格式先產生預覽，再由你確認是否寫入資料庫。</p>
+        </div>
+
+        <div className="trait-ai-form">
+          <label className="inventory-filter-field inventory-search-field trait-ai-input-field">
+            <span>食材名稱</span>
+            <input
+              type="text"
+              value={aiIngredientName}
+              onChange={(event) => setAiIngredientName(event.target.value)}
+              placeholder="例如：南瓜"
+            />
+          </label>
+
+          <button type="button" className="button-primary trait-ai-submit" onClick={handleAiSubmit} disabled={isAiLoading || !aiIngredientName.trim()}>
+            {isAiLoading ? "查詢中..." : "送出查詢"}
+          </button>
+        </div>
+
+        {aiErrorMessage ? <p className="ai-menu-error trait-ai-error">{aiErrorMessage}</p> : null}
+      </section>
+
       <div className="edit-page-toolbar">
         <button type="button" className="button-secondary" onClick={addRow}>
           新增列
@@ -263,17 +387,10 @@ export function IngredientTraitEditForm({ traits }: IngredientTraitEditFormProps
           <thead>
             <tr>
               <th>食材名稱</th>
-              <th>主要類型</th>
-              <th>水溶性纖維</th>
-              <th>非水溶性纖維</th>
+              <th>類型</th>
               <th>纖維</th>
               <th>容易脹氣</th>
               <th>適合山羊便/硬便</th>
-              <th>腹瀉時建議</th>
-              <th>適合感冒有痰</th>
-              <th>試敏狀態</th>
-              <th>過敏/不適紀錄</th>
-              <th>營養備註</th>
               <th>操作</th>
             </tr>
           </thead>
@@ -281,7 +398,7 @@ export function IngredientTraitEditForm({ traits }: IngredientTraitEditFormProps
             {filteredRows.length ? (
               filteredRows.map((item) => (
                 <tr key={item.id}>
-                  <td>
+                  <td className="trait-edit-cell trait-edit-cell-name" data-label="食材名稱">
                     <div className="edit-cell-field">
                       <input
                         value={item.ingredientName}
@@ -291,7 +408,7 @@ export function IngredientTraitEditForm({ traits }: IngredientTraitEditFormProps
                       {getFieldError(item.id, "ingredientName") ? <p className="field-error-text">{getFieldError(item.id, "ingredientName")}</p> : null}
                     </div>
                   </td>
-                  <td>
+                  <td className="trait-edit-cell trait-edit-cell-type" data-label="類型">
                     <div className="edit-cell-field">
                       <input
                         value={item.primaryType}
@@ -301,17 +418,16 @@ export function IngredientTraitEditForm({ traits }: IngredientTraitEditFormProps
                       {getFieldError(item.id, "primaryType") ? <p className="field-error-text">{getFieldError(item.id, "primaryType")}</p> : null}
                     </div>
                   </td>
-                  <td><input value={item.solubleFiber ?? ""} onChange={(event) => updateRow(item.id, "solubleFiber", event.target.value)} /></td>
-                  <td><input value={item.insolubleFiber ?? ""} onChange={(event) => updateRow(item.id, "insolubleFiber", event.target.value)} /></td>
-                  <td><input value={item.fiberLevel ?? ""} onChange={(event) => updateRow(item.id, "fiberLevel", event.target.value)} /></td>
-                  <td><input value={item.easyGas ?? ""} onChange={(event) => updateRow(item.id, "easyGas", event.target.value)} /></td>
-                  <td><input value={item.forConstipation ?? ""} onChange={(event) => updateRow(item.id, "forConstipation", event.target.value)} /></td>
-                  <td><input value={item.forDiarrhea ?? ""} onChange={(event) => updateRow(item.id, "forDiarrhea", event.target.value)} /></td>
-                  <td><input value={item.forPhlegm ?? ""} onChange={(event) => updateRow(item.id, "forPhlegm", event.target.value)} /></td>
-                  <td><input value={item.sensitivity ?? ""} onChange={(event) => updateRow(item.id, "sensitivity", event.target.value)} /></td>
-                  <td><input value={item.adverseNotes ?? ""} onChange={(event) => updateRow(item.id, "adverseNotes", event.target.value)} /></td>
-                  <td><input value={item.nutritionNotes ?? ""} onChange={(event) => updateRow(item.id, "nutritionNotes", event.target.value)} /></td>
-                  <td>
+                  <td className="trait-edit-cell trait-edit-cell-fiber" data-label="纖維">
+                    <input value={item.fiberLevel ?? ""} onChange={(event) => updateRow(item.id, "fiberLevel", event.target.value)} />
+                  </td>
+                  <td className="trait-edit-cell trait-edit-cell-gas" data-label="容易脹氣">
+                    <input value={item.easyGas ?? ""} onChange={(event) => updateRow(item.id, "easyGas", event.target.value)} />
+                  </td>
+                  <td className="trait-edit-cell trait-edit-cell-constipation" data-label="適合山羊便">
+                    <input value={item.forConstipation ?? ""} onChange={(event) => updateRow(item.id, "forConstipation", event.target.value)} />
+                  </td>
+                  <td className="trait-edit-cell trait-edit-cell-action" data-label="操作">
                     <button type="button" className="button-secondary edit-row-delete" onClick={() => deleteRow(item.id)}>
                       刪除
                     </button>
@@ -320,7 +436,7 @@ export function IngredientTraitEditForm({ traits }: IngredientTraitEditFormProps
               ))
             ) : (
               <tr>
-                <td colSpan={13} className="empty-cell">
+                <td colSpan={6} className="empty-cell">
                   目前沒有符合條件的食材特性資料
                 </td>
               </tr>
@@ -368,6 +484,85 @@ export function IngredientTraitEditForm({ traits }: IngredientTraitEditFormProps
                     </article>
                   </div>
                 ) : null}
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+
+      {canUsePortal && aiPreview
+        ? createPortal(
+            <div className="app-alert-overlay" onClick={() => setAiPreview(null)} role="presentation">
+              <div className="app-alert-modal" role="dialog" aria-modal="true" aria-labelledby="ingredient-trait-ai-preview-title" onClick={(event) => event.stopPropagation()}>
+                <div className="app-alert-head">
+                  <div>
+                    <p className="eyebrow">AI Trait Preview</p>
+                    <h3 id="ingredient-trait-ai-preview-title">查詢到的食材特性</h3>
+                  </div>
+                  <button type="button" className="app-alert-close" onClick={() => setAiPreview(null)}>
+                    關閉
+                  </button>
+                </div>
+
+                <div className="trait-preview-grid">
+                  <article className="sync-summary-card">
+                    <strong>食材名稱</strong>
+                    <p>{aiPreview.ingredientName}</p>
+                  </article>
+                  <article className="sync-summary-card">
+                    <strong>主要類型</strong>
+                    <p>{aiPreview.primaryType}</p>
+                  </article>
+                  <article className="sync-summary-card">
+                    <strong>水溶性纖維</strong>
+                    <p>{aiPreview.solubleFiber || "未填寫"}</p>
+                  </article>
+                  <article className="sync-summary-card">
+                    <strong>非水溶性纖維</strong>
+                    <p>{aiPreview.insolubleFiber || "未填寫"}</p>
+                  </article>
+                  <article className="sync-summary-card">
+                    <strong>纖維</strong>
+                    <p>{aiPreview.fiberLevel || "未填寫"}</p>
+                  </article>
+                  <article className="sync-summary-card">
+                    <strong>容易脹氣</strong>
+                    <p>{aiPreview.easyGas || "未填寫"}</p>
+                  </article>
+                  <article className="sync-summary-card">
+                    <strong>適合山羊便/硬便</strong>
+                    <p>{aiPreview.forConstipation || "未填寫"}</p>
+                  </article>
+                  <article className="sync-summary-card">
+                    <strong>腹瀉時建議</strong>
+                    <p>{aiPreview.forDiarrhea || "未填寫"}</p>
+                  </article>
+                  <article className="sync-summary-card">
+                    <strong>適合感冒有痰</strong>
+                    <p>{aiPreview.forPhlegm || "未填寫"}</p>
+                  </article>
+                  <article className="sync-summary-card">
+                    <strong>試敏狀態</strong>
+                    <p>{aiPreview.sensitivity || "未填寫"}</p>
+                  </article>
+                  <article className="sync-summary-card">
+                    <strong>過敏/不適紀錄</strong>
+                    <p>{aiPreview.adverseNotes || "未填寫"}</p>
+                  </article>
+                  <article className="sync-summary-card">
+                    <strong>營養備註</strong>
+                    <p>{aiPreview.nutritionNotes || "未填寫"}</p>
+                  </article>
+                </div>
+
+                <div className="trait-preview-actions">
+                  <button type="button" className="button-secondary trait-preview-button" onClick={() => setAiPreview(null)} disabled={isAiSaving}>
+                    取消
+                  </button>
+                  <button type="button" className="button-primary trait-preview-button" onClick={handleAiConfirmSave} disabled={isAiSaving}>
+                    {isAiSaving ? "儲存中..." : "確認並儲存"}
+                  </button>
+                </div>
               </div>
             </div>,
             document.body,

@@ -678,6 +678,85 @@ table span,
   font-size: 1.05rem;
 }
 
+.trait-ai-panel {
+  display: grid;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255, 250, 244, 0.94), rgba(235, 242, 232, 0.9));
+}
+
+.trait-ai-panel-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: start;
+}
+
+.trait-ai-panel-head h2 {
+  font-family: var(--font-geist-mono), "IBM Plex Mono", monospace;
+  font-size: clamp(1.2rem, 2vw, 1.6rem);
+}
+
+.trait-ai-panel-copy {
+  max-width: 42ch;
+  color: rgba(33, 50, 41, 0.72);
+  line-height: 1.6;
+}
+
+.trait-ai-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.trait-ai-input-field {
+  width: 100%;
+}
+
+.trait-ai-submit {
+  min-width: 132px;
+  border: 0;
+  cursor: pointer;
+}
+
+.trait-ai-submit:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.trait-ai-error {
+  margin: 0;
+}
+
+.trait-edit-cell {
+  min-width: 140px;
+}
+
+.trait-edit-cell input {
+  white-space: normal;
+}
+
+.trait-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.trait-preview-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.trait-preview-button {
+  border: 0;
+  cursor: pointer;
+}
+
 .ai-menu-card-section h4 {
   color: var(--terracotta);
   font-size: 0.95rem;
@@ -1310,6 +1389,7 @@ thead th {
 
   .panel-head,
   .app-alert-head,
+  .trait-ai-panel-head,
   .trait-modal-head,
   .ai-menu-card-head,
   .recommendation-item,
@@ -1355,6 +1435,61 @@ thead th {
   .hero,
   .panel {
     padding: 18px;
+  }
+
+  .trait-ai-form {
+    grid-template-columns: 1fr;
+  }
+
+  .trait-ai-submit {
+    width: 100%;
+  }
+
+  .trait-preview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .inventory-edit-table td.trait-edit-cell {
+    min-width: 0;
+  }
+
+  .inventory-edit-table tr {
+    align-items: start;
+  }
+
+  .trait-edit-cell-name,
+  .trait-edit-cell-type,
+  .trait-edit-cell-fiber,
+  .trait-edit-cell-gas,
+  .trait-edit-cell-constipation,
+  .trait-edit-cell-action,
+  .inventory-edit-table .empty-cell {
+    grid-column: 1 / -1;
+  }
+
+  .trait-edit-cell {
+    display: grid;
+    gap: 6px;
+  }
+
+  .trait-edit-cell::before {
+    content: attr(data-label);
+    color: var(--sage);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+  }
+
+  .trait-edit-cell input {
+    min-height: 44px;
+  }
+
+  .trait-edit-cell-action .edit-row-delete {
+    width: 100%;
+  }
+
+  .trait-preview-actions {
+    flex-direction: column;
   }
 
   .inventory-edit-table thead {
