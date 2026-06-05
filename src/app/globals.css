@@ -938,6 +938,47 @@ table span,
   color: var(--foreground);
 }
 
+.inventory-stepper-stack {
+  display: grid;
+  gap: 10px;
+  min-width: 220px;
+}
+
+.inventory-stepper-group {
+  display: grid;
+  gap: 6px;
+}
+
+.inventory-stepper-group > span {
+  font-size: 0.8rem;
+  color: rgba(33, 50, 41, 0.72);
+}
+
+.inventory-stepper-control {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 40px;
+  gap: 8px;
+  align-items: center;
+}
+
+.inventory-stepper-button {
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(246, 239, 229, 0.92);
+  color: var(--foreground);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.inventory-stepper-button:hover {
+  background: rgba(239, 228, 213, 0.98);
+}
+
+.inventory-edit-cell {
+  position: relative;
+}
+
 .edit-cell-field {
   display: grid;
   gap: 6px;
@@ -1314,5 +1355,72 @@ thead th {
   .hero,
   .panel {
     padding: 18px;
+  }
+
+  .inventory-edit-table thead {
+    display: none;
+  }
+
+  .inventory-edit-table tbody {
+    display: grid;
+    gap: 14px;
+  }
+
+  .inventory-edit-table tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: rgba(255, 254, 251, 0.88);
+  }
+
+  .inventory-edit-table td {
+    display: grid;
+    gap: 6px;
+    padding: 0;
+    border-bottom: 0;
+  }
+
+  .inventory-edit-table td::before {
+    content: attr(data-label);
+    color: var(--sage);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+  }
+
+  .inventory-edit-cell-name,
+  .inventory-edit-cell-category,
+  .inventory-edit-cell-stepper,
+  .inventory-edit-cell-expiry,
+  .inventory-edit-cell-action,
+  .inventory-edit-table .empty-cell {
+    grid-column: 1 / -1;
+  }
+
+  .inventory-edit-cell-stepper {
+    padding-top: 4px;
+  }
+
+  .inventory-edit-cell-action {
+    justify-items: stretch;
+  }
+
+  .inventory-edit-cell-action .edit-row-delete {
+    width: 100%;
+  }
+
+  .inventory-edit-table .empty-cell {
+    padding: 8px 0 0;
+  }
+
+  .inventory-stepper-stack {
+    min-width: 0;
+  }
+
+  .inventory-stepper-control {
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
   }
 }

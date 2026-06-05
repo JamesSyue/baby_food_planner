@@ -13,6 +13,7 @@ type SheetRows = string[][];
 
 const GOOGLE_TOKEN_AUDIENCE = "https://oauth2.googleapis.com/token";
 const GOOGLE_SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
+const TAIPEI_TIME_ZONE = "Asia/Taipei";
 const INVENTORY_SHEET_HEADERS = [
   "食材ID",
   "食材名稱",
@@ -21,7 +22,7 @@ const INVENTORY_SHEET_HEADERS = [
   "庫存份數",
   "每次建議上限(g)",
   "狀態",
-  "最後更新日",
+  "最後更新時間",
   "保存方式",
   "使用期限",
   "備註",
@@ -230,8 +231,52 @@ function parseNumber(value: string) {
 function parseDate(value: string) {
   const trimmed = String(value || "").trim();
   if (!trimmed) return null;
-  const date = new Date(trimmed);
+
+  const normalized = trimmed.replace(/\//g, "-");
+  let candidate = normalized;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    candidate = `${normalized}T00:00:00+08:00`;
+  } else if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(normalized)) {
+    candidate = `${normalized.replace(" ", "T")}+08:00`;
+  }
+
+  const date = new Date(candidate);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getCurrentTaipeiDate() {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TAIPEI_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
+  const parts = formatter.formatToParts(new Date());
+  const values = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+
+  return new Date(`${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}:${values.second}+08:00`);
+}
+
+function formatDateTimeForSheet(value: Date | null) {
+  if (!value) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: TAIPEI_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).format(value).replace(",", "");
 }
 
 function formatDateForSheet(value: Date | null) {
@@ -267,7 +312,7 @@ function mapInventoryRows(rows: Record<string, string>[]) {
           stockUnits,
           suggestionLimitGrams: parseNumber(row["每次建議上限(g)"]),
           status: row["狀態"]?.trim() || "可用",
-          updatedAt: parseDate(row["最後更新日"]) ?? new Date(),
+          updatedAt: parseDate(row["最後更新時間"] || row["最後更新日"]) ?? new Date(),
           storageMethod: row["保存方式"]?.trim() || null,
           expiresAt: parseDate(row["使用期限"]),
           notes: row["備註"]?.trim() || null,
@@ -414,7 +459,33 @@ function normalizeInventoryWriteItems(items: InventoryWriteItem[]) {
 }
 
 export async function replaceInventoryInDatabaseAndSheet(items: InventoryWriteItem[]) {
-  const inventory = normalizeInventoryWriteItems(items);
+  const existingInventory = await prisma.inventoryItem.findMany({
+    select: {
+      code: true,
+      specGrams: true,
+      stockUnits: true,
+      updatedAt: true,
+    },
+  });
+  const existingInventoryByCode = new Map(existingInventory.map((item) => [item.code, item]));
+  const syncTimestamp = getCurrentTaipeiDate();
+  const inventory = normalizeInventoryWriteItems(items).map((item) => {
+    const existingItem = existingInventoryByCode.get(item.code);
+
+    if (!existingItem) {
+      return {
+        ...item,
+        updatedAt: syncTimestamp,
+      };
+    }
+
+    const shouldRefreshUpdatedAt = existingItem.specGrams !== item.specGrams || existingItem.stockUnits !== item.stockUnits;
+
+    return {
+      ...item,
+      updatedAt: shouldRefreshUpdatedAt ? syncTimestamp : existingItem.updatedAt,
+    };
+  });
   const accessToken = await fetchGoogleAccessToken();
   const spreadsheetId = getRequiredEnv("GOOGLE_SHEETS_SPREADSHEET_ID");
   const inventorySheetName = getRequiredEnv("GOOGLE_SHEET_TAB_INVENTORY");
@@ -437,7 +508,7 @@ export async function replaceInventoryInDatabaseAndSheet(items: InventoryWriteIt
       String(item.stockUnits),
       item.suggestionLimitGrams === null ? "" : String(item.suggestionLimitGrams),
       item.status,
-      formatDateForSheet(item.updatedAt),
+      formatDateTimeForSheet(item.updatedAt),
       item.storageMethod || "",
       formatDateForSheet(item.expiresAt),
       item.notes || "",
@@ -448,7 +519,7 @@ export async function replaceInventoryInDatabaseAndSheet(items: InventoryWriteIt
   await updateSheetRows(spreadsheetId, `${inventorySheetName}!A1`, values, accessToken);
 
   return {
-    updatedAt: new Date().toISOString(),
+    updatedAt: syncTimestamp.toISOString(),
     count: inventory.length,
     items: inventory.slice(0, 12).map((item) => `${item.code} ${item.name}`),
   };

@@ -40,10 +40,26 @@ export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
   const [nextRowId, setNextRowId] = useState(-1);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [isSaving, setIsSaving] = useState(false);
   const [result, setResult] = useState<SaveResponse | null>(null);
   const canUsePortal = typeof document !== "undefined";
+
+  function getCurrentTimestamp() {
+    return new Date().toISOString();
+  }
+
+  function formatTaipeiDateTime(value: string) {
+    return new Intl.DateTimeFormat("zh-TW", {
+      timeZone: "Asia/Taipei",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    }).format(new Date(value));
+  }
 
   useEffect(() => {
     if (!result) {
@@ -71,11 +87,6 @@ export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
     [rows],
   );
 
-  const statusOptions = useMemo(
-    () => Array.from(new Set(rows.map((item) => item.status).filter(Boolean))).sort((left, right) => left.localeCompare(right, "zh-Hant")),
-    [rows],
-  );
-
   const filteredRows = useMemo(() => {
     const keyword = searchTerm.trim().toLowerCase();
 
@@ -85,16 +96,13 @@ export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
         item.code.toLowerCase().includes(keyword) ||
         item.name.toLowerCase().includes(keyword) ||
         item.category.toLowerCase().includes(keyword) ||
-        item.status.toLowerCase().includes(keyword) ||
-        (item.storageMethod || "").toLowerCase().includes(keyword) ||
-        (item.notes || "").toLowerCase().includes(keyword);
+        (item.expiresAt || "").toLowerCase().includes(keyword);
 
       const matchesCategory = categoryFilter === "all" || item.category === categoryFilter;
-      const matchesStatus = statusFilter === "all" || item.status === statusFilter;
 
-      return matchesKeyword && matchesCategory && matchesStatus;
+      return matchesKeyword && matchesCategory;
     });
-  }, [categoryFilter, rows, searchTerm, statusFilter]);
+  }, [categoryFilter, rows, searchTerm]);
 
   const validationErrors = useMemo(() => {
     return rows.reduce<Record<number, Partial<Record<InventoryRequiredField, string>>>>((errors, item) => {
@@ -123,7 +131,7 @@ export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
   const hasValidationErrors = Object.keys(validationErrors).length > 0;
 
   function createEmptyRow(id: number): InventoryEditItem {
-    const today = new Date().toISOString().slice(0, 10);
+    const timestamp = getCurrentTimestamp();
 
     return {
       id,
@@ -134,7 +142,7 @@ export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
       stockUnits: 0,
       suggestionLimitGrams: null,
       status: "可用",
-      updatedAt: today,
+      updatedAt: timestamp,
       storageMethod: null,
       expiresAt: null,
       notes: null,
@@ -172,7 +180,8 @@ export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
         }
 
         if (field === "specGrams" || field === "stockUnits") {
-          return { ...item, [field]: value === "" ? 0 : Number(value) };
+          const nextValue = value === "" ? 0 : Math.max(0, Number(value));
+          return { ...item, [field]: Number.isFinite(nextValue) ? nextValue : 0, updatedAt: getCurrentTimestamp() };
         }
 
         if (field === "suggestionLimitGrams") {
@@ -184,6 +193,22 @@ export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
         }
 
         return { ...item, [field]: value };
+      }),
+    );
+  }
+
+  function adjustRowNumber(id: number, field: "specGrams" | "stockUnits", delta: number) {
+    setRows((current) =>
+      current.map((item) => {
+        if (item.id !== id) {
+          return item;
+        }
+
+        return {
+          ...item,
+          [field]: Math.max(0, item[field] + delta),
+          updatedAt: getCurrentTimestamp(),
+        };
       }),
     );
   }
@@ -254,7 +279,7 @@ export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
       <div className="inventory-filters edit-form-filters">
         <label className="inventory-filter-field inventory-search-field">
           <span>搜尋</span>
-          <input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="搜尋食材ID、食材名稱、類型或狀態" />
+          <input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="搜尋食材ID、食材名稱、類型或期限" />
         </label>
 
         <label className="inventory-filter-field">
@@ -269,17 +294,6 @@ export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
           </select>
         </label>
 
-        <label className="inventory-filter-field">
-          <span>狀態篩選</span>
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-            <option value="all">全部狀態</option>
-            {statusOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </label>
       </div>
 
       <div className="edit-page-toolbar">
@@ -295,13 +309,8 @@ export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
               <th>食材ID</th>
               <th>食材名稱</th>
               <th>類型</th>
-              <th>規格(g)</th>
-              <th>庫存份數</th>
-              <th>每次建議上限(g)</th>
-              <th>狀態</th>
-              <th>保存方式</th>
-              <th>使用期限</th>
-              <th>備註</th>
+              <th>規格</th>
+              <th>期限</th>
               <th>操作</th>
             </tr>
           </thead>
@@ -309,7 +318,7 @@ export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
             {filteredRows.length ? (
               filteredRows.map((item) => (
                 <tr key={item.id}>
-                  <td>
+                  <td className="inventory-edit-cell inventory-edit-cell-code" data-label="食材ID">
                     <div className="edit-cell-field">
                       <input
                         value={item.code}
@@ -319,7 +328,7 @@ export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
                       {getFieldError(item.id, "code") ? <p className="field-error-text">{getFieldError(item.id, "code")}</p> : null}
                     </div>
                   </td>
-                  <td>
+                  <td className="inventory-edit-cell inventory-edit-cell-name" data-label="食材名稱">
                     <div className="edit-cell-field">
                       <input
                         value={item.name}
@@ -329,7 +338,7 @@ export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
                       {getFieldError(item.id, "name") ? <p className="field-error-text">{getFieldError(item.id, "name")}</p> : null}
                     </div>
                   </td>
-                  <td>
+                  <td className="inventory-edit-cell inventory-edit-cell-category" data-label="類型">
                     <div className="edit-cell-field">
                       <input
                         value={item.category}
@@ -339,33 +348,39 @@ export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
                       {getFieldError(item.id, "category") ? <p className="field-error-text">{getFieldError(item.id, "category")}</p> : null}
                     </div>
                   </td>
-                  <td>
-                    <input type="number" min="0" value={item.specGrams} onChange={(event) => updateRow(item.id, "specGrams", event.target.value)} />
+                  <td className="inventory-edit-cell inventory-edit-cell-stepper" data-label="規格與庫存份數">
+                    <div className="inventory-stepper-stack">
+                      <label className="inventory-stepper-group">
+                        <span>規格(g)</span>
+                        <div className="inventory-stepper-control">
+                          <button type="button" className="inventory-stepper-button" onClick={() => adjustRowNumber(item.id, "specGrams", -1)}>
+                            -
+                          </button>
+                          <input type="number" min="0" step="1" value={item.specGrams} onChange={(event) => updateRow(item.id, "specGrams", event.target.value)} />
+                          <button type="button" className="inventory-stepper-button" onClick={() => adjustRowNumber(item.id, "specGrams", 1)}>
+                            +
+                          </button>
+                        </div>
+                      </label>
+
+                      <label className="inventory-stepper-group">
+                        <span>庫存(份)</span>
+                        <div className="inventory-stepper-control">
+                          <button type="button" className="inventory-stepper-button" onClick={() => adjustRowNumber(item.id, "stockUnits", -1)}>
+                            -
+                          </button>
+                          <input type="number" min="0" step="1" value={item.stockUnits} onChange={(event) => updateRow(item.id, "stockUnits", event.target.value)} />
+                          <button type="button" className="inventory-stepper-button" onClick={() => adjustRowNumber(item.id, "stockUnits", 1)}>
+                            +
+                          </button>
+                        </div>
+                      </label>
+                    </div>
                   </td>
-                  <td>
-                    <input type="number" min="0" value={item.stockUnits} onChange={(event) => updateRow(item.id, "stockUnits", event.target.value)} />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      min="0"
-                      value={item.suggestionLimitGrams ?? ""}
-                      onChange={(event) => updateRow(item.id, "suggestionLimitGrams", event.target.value)}
-                    />
-                  </td>
-                  <td>
-                    <input value={item.status} onChange={(event) => updateRow(item.id, "status", event.target.value)} />
-                  </td>
-                  <td>
-                    <input value={item.storageMethod ?? ""} onChange={(event) => updateRow(item.id, "storageMethod", event.target.value)} />
-                  </td>
-                  <td>
+                  <td className="inventory-edit-cell inventory-edit-cell-expiry" data-label="期限">
                     <input type="date" value={item.expiresAt ? item.expiresAt.slice(0, 10) : ""} onChange={(event) => updateRow(item.id, "expiresAt", event.target.value)} />
                   </td>
-                  <td>
-                    <input value={item.notes ?? ""} onChange={(event) => updateRow(item.id, "notes", event.target.value)} />
-                  </td>
-                  <td>
+                  <td className="inventory-edit-cell inventory-edit-cell-action" data-label="操作">
                     <button type="button" className="button-secondary edit-row-delete" onClick={() => deleteRow(item.id)}>
                       刪除
                     </button>
@@ -374,7 +389,7 @@ export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
               ))
             ) : (
               <tr>
-                <td colSpan={11} className="empty-cell">
+                <td colSpan={6} className="empty-cell">
                   目前沒有符合條件的食材庫存資料
                 </td>
               </tr>
@@ -412,7 +427,7 @@ export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
                 </div>
 
                 {result.message ? <p className="app-alert-message">{result.message}</p> : null}
-                {result.updatedAt ? <p className="app-alert-meta">更新時間：{new Date(result.updatedAt).toLocaleString("zh-TW")}</p> : null}
+                {result.updatedAt ? <p className="app-alert-meta">更新時間：{formatTaipeiDateTime(result.updatedAt)} (UTC+8)</p> : null}
                 {result.count !== undefined ? <p className="app-alert-meta">同步筆數：{result.count} 筆</p> : null}
                 {result.items?.length ? (
                   <div className="sync-summary-list">
