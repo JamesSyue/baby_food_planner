@@ -1,22 +1,79 @@
 import { prisma } from "@/lib/prisma";
 
+export type MenuRecommendationIngredientInput = {
+  name: string;
+  category: string;
+  grams: number;
+  note: string;
+};
+
+export type MenuRecommendationMenuInput = {
+  day: string;
+  mealType: string;
+  menuName: string;
+  ingredients: MenuRecommendationIngredientInput[];
+  totalGrams: number;
+  reason: string;
+  cautions: string[];
+};
+
+export type MenuIngredientInventoryStatus = {
+  isMatched: boolean;
+  isInsufficient: boolean;
+  requestedGrams: number;
+  totalPlannedGrams: number;
+  availableGrams: number;
+  shortageGrams: number;
+  stockUnits: number;
+  specGrams: number | null;
+  deductStockUnits: number;
+};
+
+export type MenuRecommendationInventoryCheckItem = {
+  code: string | null;
+  name: string;
+  category: string;
+  specGrams: number | null;
+  stockUnits: number;
+  availableGrams: number;
+  requiredGrams: number;
+  remainingGrams: number;
+  shortageGrams: number;
+  isInsufficient: boolean;
+  deductStockUnits: number;
+};
+
 export type MenuRecommendationResult = {
   overview: string;
-  menus: Array<{
-    day: string;
-    mealType: string;
-    menuName: string;
-    ingredients: Array<{
-      name: string;
-      category: string;
-      grams: number;
-      note: string;
-    }>;
-    totalGrams: number;
-    reason: string;
-    cautions: string[];
-  }>;
+  menus: Array<
+    MenuRecommendationMenuInput & {
+      ingredients: Array<
+        MenuRecommendationIngredientInput & {
+          inventoryStatus: MenuIngredientInventoryStatus;
+        }
+      >;
+    }
+  >;
   notes: string[];
+  inventoryCheck: {
+    hasShortage: boolean;
+    items: MenuRecommendationInventoryCheckItem[];
+  };
+};
+
+export type MenuInventoryDeductionSummary = {
+  hasShortage: boolean;
+  items: Array<{
+    code: string;
+    name: string;
+    category: string;
+    specGrams: number;
+    stockUnits: number;
+    deductStockUnits: number;
+    remainingStockUnits: number;
+    requiredGrams: number;
+    availableGrams: number;
+  }>;
 };
 
 export type IngredientTraitSuggestion = {
@@ -51,6 +108,10 @@ const SENSITIVITY_BLOCKED_KEYWORDS = ["過敏", "不適", "腹瀉", "脹氣", "�
 
 function normalizeText(value: string | null | undefined) {
   return (value || "").trim();
+}
+
+function normalizeIngredientKey(value: string | null | undefined) {
+  return normalizeText(value).toLowerCase();
 }
 
 function extractJsonObject(input: string) {
@@ -124,11 +185,15 @@ function buildMenuPrompt(userPrompt: string, context: Awaited<ReturnType<typeof 
   ].join("\n\n");
 }
 
-function sanitizeMenuRecommendationResult(input: unknown): MenuRecommendationResult {
+function sanitizeMenuRecommendationResult(input: unknown) {
   const fallback: MenuRecommendationResult = {
     overview: "AI 未回傳完整結構化資料。",
     menus: [],
     notes: ["請調整提示詞後再試一次。"],
+    inventoryCheck: {
+      hasShortage: false,
+      items: [],
+    },
   };
 
   if (!input || typeof input !== "object") {
@@ -211,7 +276,120 @@ function sanitizeMenuRecommendationResult(input: unknown): MenuRecommendationRes
     notes: Array.isArray(source.notes)
       ? source.notes.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim())
       : fallback.notes,
+    inventoryCheck: {
+      hasShortage: false,
+      items: [],
+    },
   };
+}
+
+function buildInventoryAssessment(menus: MenuRecommendationMenuInput[], availableInventory: Awaited<ReturnType<typeof collectMenuContext>>["availableInventory"]) {
+  const inventoryByIngredientName = new Map(
+    availableInventory.map((item) => [normalizeIngredientKey(item.name), item] as const),
+  );
+  const requiredGramsByIngredient = new Map<string, { name: string; category: string; requiredGrams: number }>();
+
+  for (const menu of menus) {
+    for (const ingredient of menu.ingredients) {
+      const key = normalizeIngredientKey(ingredient.name);
+
+      if (!key) {
+        continue;
+      }
+
+      const existing = requiredGramsByIngredient.get(key);
+
+      if (existing) {
+        existing.requiredGrams += ingredient.grams;
+        continue;
+      }
+
+      requiredGramsByIngredient.set(key, {
+        name: ingredient.name,
+        category: ingredient.category,
+        requiredGrams: ingredient.grams,
+      });
+    }
+  }
+
+  const inventoryItems = Array.from(requiredGramsByIngredient.entries())
+    .map(([key, item]) => {
+      const inventory = inventoryByIngredientName.get(key);
+      const availableGrams = inventory ? inventory.specGrams * inventory.stockUnits : 0;
+      const shortageGrams = Math.max(0, item.requiredGrams - availableGrams);
+
+      return {
+        code: inventory?.code ?? null,
+        name: item.name,
+        category: inventory?.category ?? item.category,
+        specGrams: inventory?.specGrams ?? null,
+        stockUnits: inventory?.stockUnits ?? 0,
+        availableGrams,
+        requiredGrams: item.requiredGrams,
+        remainingGrams: Math.max(0, availableGrams - item.requiredGrams),
+        shortageGrams,
+        isInsufficient: !inventory || shortageGrams > 0,
+        deductStockUnits: inventory && inventory.specGrams > 0 ? Math.ceil(item.requiredGrams / inventory.specGrams) : 0,
+      } satisfies MenuRecommendationInventoryCheckItem;
+    })
+    .sort((left, right) => left.name.localeCompare(right.name, "zh-Hant"));
+
+  const inventoryItemByName = new Map(inventoryItems.map((item) => [normalizeIngredientKey(item.name), item] as const));
+
+  return {
+    hasShortage: inventoryItems.some((item) => item.isInsufficient),
+    items: inventoryItems,
+    menus: menus.map((menu) => ({
+      ...menu,
+      ingredients: menu.ingredients.map((ingredient) => {
+        const inventoryItem = inventoryItemByName.get(normalizeIngredientKey(ingredient.name));
+
+        return {
+          ...ingredient,
+          inventoryStatus: {
+            isMatched: Boolean(inventoryItem?.code),
+            isInsufficient: inventoryItem?.isInsufficient ?? true,
+            requestedGrams: ingredient.grams,
+            totalPlannedGrams: inventoryItem?.requiredGrams ?? ingredient.grams,
+            availableGrams: inventoryItem?.availableGrams ?? 0,
+            shortageGrams: inventoryItem?.shortageGrams ?? ingredient.grams,
+            stockUnits: inventoryItem?.stockUnits ?? 0,
+            specGrams: inventoryItem?.specGrams ?? null,
+            deductStockUnits: inventoryItem?.deductStockUnits ?? 0,
+          },
+        };
+      }),
+    })),
+  };
+}
+
+function toDeductionSummary(inventoryCheck: MenuRecommendationResult["inventoryCheck"]): MenuInventoryDeductionSummary {
+  return {
+    hasShortage: inventoryCheck.hasShortage,
+    items: inventoryCheck.items
+      .filter((item): item is MenuRecommendationInventoryCheckItem & { code: string; specGrams: number } => Boolean(item.code) && item.specGrams !== null)
+      .map((item) => ({
+        code: item.code,
+        name: item.name,
+        category: item.category,
+        specGrams: item.specGrams,
+        stockUnits: item.stockUnits,
+        deductStockUnits: item.deductStockUnits,
+        remainingStockUnits: Math.max(0, item.stockUnits - item.deductStockUnits),
+        requiredGrams: item.requiredGrams,
+        availableGrams: item.availableGrams,
+      })),
+  };
+}
+
+export async function getMenuInventoryDeductionSummary(menus: MenuRecommendationMenuInput[]) {
+  const context = await collectMenuContext();
+  const inventoryCheck = buildInventoryAssessment(menus, context.availableInventory);
+
+  return toDeductionSummary({
+    hasShortage: inventoryCheck.hasShortage,
+    items: inventoryCheck.items,
+  });
 }
 
 function normalizeOptionalTraitText(value: unknown) {
@@ -348,8 +526,17 @@ export async function getMenuRecommendation(userPrompt: string) {
   const context = await collectMenuContext();
   const prompt = buildMenuPrompt(trimmedPrompt, context);
   const parsed = await generateGeminiJson(prompt);
+  const sanitized = sanitizeMenuRecommendationResult(parsed);
+  const inventoryCheck = buildInventoryAssessment(sanitized.menus, context.availableInventory);
 
-  return sanitizeMenuRecommendationResult(parsed);
+  return {
+    ...sanitized,
+    menus: inventoryCheck.menus,
+    inventoryCheck: {
+      hasShortage: inventoryCheck.hasShortage,
+      items: inventoryCheck.items,
+    },
+  } satisfies MenuRecommendationResult;
 }
 
 export async function getIngredientTraitSuggestion(ingredientName: string) {
