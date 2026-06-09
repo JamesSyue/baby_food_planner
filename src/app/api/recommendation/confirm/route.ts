@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getLoggedInAccount } from "@/lib/auth";
 import { getMenuInventoryDeductionSummary, type MenuRecommendationMenuInput } from "@/lib/ai-menu";
 import { replaceInventoryInDatabaseAndSheet } from "@/lib/google-sheet-sync";
+import { prisma } from "@/lib/prisma";
 
 type ConfirmRequestBody = {
   menus?: MenuRecommendationMenuInput[];

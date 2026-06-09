@@ -29,6 +29,14 @@ export type MenuIngredientInventoryStatus = {
   deductStockUnits: number;
 };
 
+export type MenuRecommendationIngredient = MenuRecommendationIngredientInput & {
+  inventoryStatus: MenuIngredientInventoryStatus;
+};
+
+export type MenuRecommendationMenu = Omit<MenuRecommendationMenuInput, "ingredients"> & {
+  ingredients: MenuRecommendationIngredient[];
+};
+
 export type MenuRecommendationInventoryCheckItem = {
   code: string | null;
   name: string;
@@ -45,15 +53,7 @@ export type MenuRecommendationInventoryCheckItem = {
 
 export type MenuRecommendationResult = {
   overview: string;
-  menus: Array<
-    MenuRecommendationMenuInput & {
-      ingredients: Array<
-        MenuRecommendationIngredientInput & {
-          inventoryStatus: MenuIngredientInventoryStatus;
-        }
-      >;
-    }
-  >;
+  menus: MenuRecommendationMenu[];
   notes: string[];
   inventoryCheck: {
     hasShortage: boolean;

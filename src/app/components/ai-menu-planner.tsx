@@ -33,6 +33,8 @@ type ActionFeedback = {
   message: string;
 };
 
+type RecommendedMenu = MenuRecommendationResult["menus"][number];
+
 const MEAL_TYPE_ORDER = ["早餐", "午餐", "下午點心", "晚餐", "宵夜"];
 
 function getMealTypeOrder(mealType: string) {
@@ -55,10 +57,10 @@ export function AiMenuPlanner() {
 
   const daySlides = useMemo(() => {
     if (!result) {
-      return [] as Array<{ day: string; meals: MenuRecommendationResult["menus"] }>;
+      return [] as Array<{ day: string; meals: RecommendedMenu[] }>;
     }
 
-    const grouped = new Map<string, MenuRecommendationResult["menus"]>();
+    const grouped = new Map<string, RecommendedMenu[]>();
 
     for (const menu of result.menus) {
       const existing = grouped.get(menu.day) || [];
