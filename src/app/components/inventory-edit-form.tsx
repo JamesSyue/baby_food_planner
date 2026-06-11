@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 
+import { assignInventoryCodes } from "@/lib/inventory-code";
+
 type InventoryEditItem = {
   id: number;
   code: string;
@@ -31,7 +33,7 @@ type InventoryEditFormProps = {
   inventory: InventoryEditItem[];
 };
 
-type InventoryRequiredField = "code" | "name" | "category";
+type InventoryRequiredField = "name" | "category";
 
 export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
   const router = useRouter();
@@ -87,10 +89,12 @@ export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
     [rows],
   );
 
+  const rowsWithAutoCode = useMemo(() => assignInventoryCodes(rows), [rows]);
+
   const filteredRows = useMemo(() => {
     const keyword = searchTerm.trim().toLowerCase();
 
-    return rows.filter((item) => {
+    return rowsWithAutoCode.filter((item) => {
       const matchesKeyword =
         !keyword ||
         item.code.toLowerCase().includes(keyword) ||
@@ -102,15 +106,11 @@ export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
 
       return matchesKeyword && matchesCategory;
     });
-  }, [categoryFilter, rows, searchTerm]);
+  }, [categoryFilter, rowsWithAutoCode, searchTerm]);
 
   const validationErrors = useMemo(() => {
     return rows.reduce<Record<number, Partial<Record<InventoryRequiredField, string>>>>((errors, item) => {
       const itemErrors: Partial<Record<InventoryRequiredField, string>> = {};
-
-      if (!item.code.trim()) {
-        itemErrors.code = "食材ID 不可空白";
-      }
 
       if (!item.name.trim()) {
         itemErrors.name = "食材名稱不可空白";
@@ -236,7 +236,7 @@ export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          items: rows.map((item) => {
+          items: rowsWithAutoCode.map((item) => {
             const { id: omittedId, ...rest } = item;
             void omittedId;
             return rest;
@@ -320,12 +320,7 @@ export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
                 <tr key={item.id}>
                   <td className="inventory-edit-cell inventory-edit-cell-code" data-label="食材ID">
                     <div className="edit-cell-field">
-                      <input
-                        value={item.code}
-                        onChange={(event) => updateRow(item.id, "code", event.target.value)}
-                        className={getFieldError(item.id, "code") ? "input-error" : undefined}
-                      />
-                      {getFieldError(item.id, "code") ? <p className="field-error-text">{getFieldError(item.id, "code")}</p> : null}
+                      <input value={item.category.trim() ? item.code : ""} readOnly placeholder="輸入類型後自動產生" />
                     </div>
                   </td>
                   <td className="inventory-edit-cell inventory-edit-cell-name" data-label="食材名稱">
@@ -403,7 +398,7 @@ export function InventoryEditForm({ inventory }: InventoryEditFormProps) {
           {isSaving || isPending ? "儲存中..." : "儲存並送出"}
         </button>
         <p className="edit-page-hint">送出後會同步資料庫，並把食材庫存工作表完整回寫到 Google Sheet。</p>
-        {hasValidationErrors ? <p className="edit-page-validation-note">必填欄位：食材ID、食材名稱、類型。</p> : null}
+        {hasValidationErrors ? <p className="edit-page-validation-note">必填欄位：食材名稱、類型。</p> : null}
       </div>
 
       {canUsePortal && result

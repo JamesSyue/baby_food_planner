@@ -23,6 +23,10 @@ const dateFormatter = new Intl.DateTimeFormat("zh-TW", {
   day: "2-digit",
 });
 
+function isNormalResult(result: string | null) {
+  return Boolean(result?.trim().includes("正常"));
+}
+
 export function SensitivityTable({ records }: SensitivityTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [resultFilter, setResultFilter] = useState("all");
@@ -115,11 +119,11 @@ export function SensitivityTable({ records }: SensitivityTableProps) {
           <tbody>
             {filteredRecords.length ? (
               filteredRecords.map((record) => (
-                <tr key={record.id}>
+                <tr key={record.id} className={isNormalResult(record.result) ? "sensitivity-row-ok" : undefined}>
                   <td>{dateFormatter.format(new Date(record.recordedOn))}</td>
                   <td>
                     <strong>{record.ingredientName}</strong>
-                    {record.symptomNotes ? <span>{record.symptomNotes}</span> : null}
+                    {record.symptomNotes ? <span className="sensitivity-note">{record.symptomNotes}</span> : null}
                   </td>
                   <td>{record.grams}g</td>
                   <td>第 {record.daySequence} 天</td>

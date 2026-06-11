@@ -907,6 +907,16 @@ table span,
   color: var(--terracotta);
 }
 
+.sensitivity-row-ok {
+  background: rgba(225, 238, 223, 0.72);
+}
+
+.sensitivity-note {
+  display: block;
+  margin-top: 6px;
+  white-space: pre-wrap;
+}
+
 .ai-menu-loading-overlay {
   position: fixed;
   inset: 0;

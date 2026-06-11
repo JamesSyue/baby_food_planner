@@ -1,5 +1,6 @@
 import { createSign } from "node:crypto";
 
+import { assignInventoryCodes } from "@/lib/inventory-code";
 import { prisma } from "@/lib/prisma";
 
 type SheetSyncSummary = {
@@ -412,17 +413,16 @@ function mapSensitivityRows(rows: Record<string, string>[]) {
 }
 
 function normalizeInventoryWriteItems(items: InventoryWriteItem[]) {
-  return dedupeByKey(
+  return assignInventoryCodes(
     items.map((item) => {
-      const code = String(item.code || "").trim();
       const name = String(item.name || "").trim();
       const category = String(item.category || "").trim();
       const status = String(item.status || "").trim() || "可用";
       const specGrams = Number(item.specGrams);
       const stockUnits = Number(item.stockUnits);
 
-      if (!code || !name || !category) {
-        throw new Error("食材ID、食材名稱、類型不可空白。");
+      if (!name || !category) {
+        throw new Error("食材名稱、類型不可空白。");
       }
 
       if (!Number.isFinite(specGrams) || specGrams < 0 || !Number.isFinite(stockUnits) || stockUnits < 0) {
@@ -441,7 +441,7 @@ function normalizeInventoryWriteItems(items: InventoryWriteItem[]) {
       const expiresAt = item.expiresAt instanceof Date ? item.expiresAt : parseDate(String(item.expiresAt || ""));
 
       return {
-        code,
+        code: String(item.code || "").trim(),
         name,
         category,
         specGrams,
@@ -454,7 +454,6 @@ function normalizeInventoryWriteItems(items: InventoryWriteItem[]) {
         notes: String(item.notes || "").trim() || null,
       };
     }),
-    (item) => item.code,
   );
 }
 
