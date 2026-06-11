@@ -12,8 +12,12 @@ export function getInventoryCodePrefix(category: string) {
     return "V";
   }
 
-  if (normalizedCategory.includes("澱粉") || normalizedCategory.includes("水果")) {
+  if (normalizedCategory.includes("澱粉")) {
     return "S";
+  }
+
+  if (normalizedCategory.includes("水果")) {
+    return "F";
   }
 
   if (normalizedCategory.includes("蛋白")) {
